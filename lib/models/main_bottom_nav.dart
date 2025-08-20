@@ -36,8 +36,14 @@ class _MainBottomNavState extends State<MainBottomNav> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: '홈'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: '리스트'),
-          BottomNavigationBarItem(icon: Icon(Icons.calendar_today), label: '캘린더'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.notifications),
+            label: '리스트',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.calendar_today),
+            label: '캘린더',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.camera_alt), label: '사진첩'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
         ],

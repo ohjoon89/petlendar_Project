@@ -1,0 +1,334 @@
+import 'package:flutter/material.dart';
+import 'package:table_calendar/table_calendar.dart';
+
+/// 이벤트 모델
+class Event {
+  final String title;
+  final Color color;
+  Event(this.title, this.color);
+
+  @override
+  String toString() => title;
+}
+
+/// 전역 이벤트 저장소
+final Map<DateTime, List<Event>> globalEvents = {};
+
+class CalendarScreen extends StatefulWidget {
+  const CalendarScreen({super.key});
+
+  @override
+  State<CalendarScreen> createState() => _CalendarScreenState();
+}
+
+class _CalendarScreenState extends State<CalendarScreen> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
+
+  DateTime _dayKey(DateTime d) => DateTime(d.year, d.month, d.day);
+  List<Event> _eventsOf(DateTime day) => globalEvents[_dayKey(day)] ?? [];
+
+  void _addEvent(DateTime day, String title, Color color) {
+    final key = _dayKey(day);
+    final list = globalEvents.putIfAbsent(key, () => <Event>[]);
+    list.add(Event(title, color));
+    setState(() {});
+  }
+
+  void _editEvent(DateTime day, int index, String newTitle, Color color) {
+    final key = _dayKey(day);
+    final list = globalEvents[key];
+    if (list == null || index < 0 || index >= list.length) return;
+    list[index] = Event(newTitle, color);
+    setState(() {});
+  }
+
+  void _removeEvent(DateTime day, int index) {
+    final key = _dayKey(day);
+    final list = globalEvents[key];
+    if (list == null || index < 0 || index >= list.length) return;
+    list.removeAt(index);
+    if (list.isEmpty) globalEvents.remove(key);
+    setState(() {});
+  }
+
+  Future<void> _showAddDialog(DateTime day) async {
+    final controller = TextEditingController();
+    Color selectedColor = Colors.indigo;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('일정 추가'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: '일정 제목을 입력하세요',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _colorCircle(
+                    Colors.red,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.red),
+                  ),
+                  _colorCircle(
+                    Colors.green,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.green),
+                  ),
+                  _colorCircle(
+                    Colors.blue,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.blue),
+                  ),
+                  _colorCircle(
+                    Colors.orange,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.orange),
+                  ),
+                  _colorCircle(
+                    Colors.indigo,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.indigo),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty) _addEvent(day, text, selectedColor);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('추가'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showEditDialog(DateTime day, int index, Event event) async {
+    final controller = TextEditingController(text: event.title);
+    Color selectedColor = event.color;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('일정 수정'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: const InputDecoration(border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _colorCircle(
+                    Colors.red,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.red),
+                  ),
+                  _colorCircle(
+                    Colors.green,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.green),
+                  ),
+                  _colorCircle(
+                    Colors.blue,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.blue),
+                  ),
+                  _colorCircle(
+                    Colors.orange,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.orange),
+                  ),
+                  _colorCircle(
+                    Colors.indigo,
+                    selectedColor,
+                    () => setState(() => selectedColor = Colors.indigo),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _removeEvent(day, index);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('삭제'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isNotEmpty)
+                  _editEvent(day, index, text, selectedColor);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('저장'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _colorCircle(Color color, Color selected, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: CircleAvatar(
+        backgroundColor: color,
+        radius: selected == color ? 16 : 12,
+        child: selected == color
+            ? const Icon(Icons.check, color: Colors.white, size: 16)
+            : null,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _selectedDay ?? _focusedDay;
+    final selectedEvents = _eventsOf(selected);
+
+    return Scaffold(
+      appBar: AppBar(toolbarHeight: 0, elevation: 0),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showAddDialog(selected),
+        icon: const Icon(Icons.add),
+        label: const Text('일정 추가'),
+      ),
+      body: Column(
+        children: [
+          TableCalendar<Event>(
+            locale: 'ko_KR',
+            firstDay: DateTime(2000, 1, 1),
+            lastDay: DateTime(2100, 12, 31),
+            focusedDay: _focusedDay,
+            selectedDayPredicate: (day) => isSameDay(day, _selectedDay),
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _selectedDay = selectedDay;
+                _focusedDay = focusedDay;
+              });
+            },
+            eventLoader: _eventsOf,
+            headerStyle: const HeaderStyle(
+              titleCentered: true,
+              formatButtonVisible: false,
+            ),
+            calendarStyle: CalendarStyle(
+              todayDecoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.secondaryContainer,
+                shape: BoxShape.circle,
+              ),
+              selectedDecoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary,
+                shape: BoxShape.circle,
+              ),
+            ),
+            daysOfWeekHeight: 30,
+            daysOfWeekStyle: const DaysOfWeekStyle(
+              weekdayStyle: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.black,
+              ),
+              weekendStyle: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.black,
+              ),
+            ),
+            rowHeight: 52,
+            calendarBuilders: CalendarBuilders<Event>(
+              markerBuilder: (context, day, events) {
+                if (events.isEmpty) return const SizedBox();
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: events
+                      .map(
+                        (e) => Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.symmetric(horizontal: 0.5),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: e.color,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                );
+              },
+            ),
+            onPageChanged: (focusedDay) => _focusedDay = focusedDay,
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                Text(
+                  '${selected.year}년 ${selected.month}월 ${selected.day}일 일정',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: selectedEvents.isEmpty
+                ? const Center(child: Text('등록된 일정이 없습니다. + 버튼으로 추가하세요.'))
+                : ListView.separated(
+                    itemCount: selectedEvents.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final e = selectedEvents[index];
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: e.color,
+                          radius: 6,
+                        ),
+                        title: Text(e.title),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _removeEvent(selected, index),
+                        ),
+                        onTap: () => _showEditDialog(selected, index, e),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}

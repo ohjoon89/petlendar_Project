@@ -1,223 +1,506 @@
+// calendar_screen.dart
 import 'package:flutter/material.dart';
-import 'package:table_calendar/table_calendar.dart';
-
-class Event {
-  String title;
-  Event({required this.title});
-}
+import 'package:intl/intl.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
+
   @override
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
+class Event {
+  String title;
+  Color color;
+  Event({required this.title, required this.color});
+}
+
 class _CalendarScreenState extends State<CalendarScreen> {
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
+  DateTime _selectedDay = DateTime.now();
+  DateTime _currentMonth = DateTime(
+    DateTime.now().year,
+    DateTime.now().month,
+    1,
+  );
 
-  // 날짜별 이벤트 저장
-  final Map<DateTime, List<Event>> _events = {};
+  final Map<String, List<Event>> events = {};
 
-  List<Event> _getEventsForDay(DateTime day) {
-    final key = DateTime(day.year, day.month, day.day);
-    return _events[key] ?? [];
+  late final PageController _pageController;
+  late final int _initialPage;
+
+  @override
+  void initState() {
+    super.initState();
+    _initialPage = 1000;
+    _pageController = PageController(initialPage: _initialPage);
   }
 
-  void _addOrEditEvent(DateTime day) async {
-    final controller = TextEditingController();
-    final events = _getEventsForDay(day);
-    if (events.isNotEmpty) {
-      controller.text = events.first.title;
-    }
+  DateTime _getMonthDate(int pageIndex) {
+    final int monthOffset = pageIndex - _initialPage;
+    return DateTime(DateTime.now().year, DateTime.now().month + monthOffset, 1);
+  }
 
-    final result = await showDialog<String>(
+  void _openEventList(DateTime day) {
+    final String key = DateFormat('yyyy-MM-dd').format(day);
+    showModalBottomSheet(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(events.isEmpty ? '일정 추가' : '일정 수정'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(labelText: '일정 제목'),
-          autofocus: true,
-        ),
-        actions: [
-          if (events.isNotEmpty)
-            TextButton(
-              onPressed: () {
-                setState(() {
-                  _events.remove(DateTime(day.year, day.month, day.day));
-                });
-                Navigator.pop(context);
-              },
-              child: const Text('삭제', style: TextStyle(color: Colors.red)),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
+      isScrollControlled: true,
+      builder: (context) {
+        final TextEditingController _controller = TextEditingController();
+        Color selectedColor = Colors.blue;
+        return Padding(
+          padding: MediaQuery.of(context).viewInsets,
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              final dayEvents = events[key] ?? [];
+              return Container(
+                height: MediaQuery.of(context).size.height * 0.5,
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    Text(
+                      '일정 (${DateFormat('yyyy-MM-dd').format(day)})',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: dayEvents.length,
+                        itemBuilder: (context, index) {
+                          final event = dayEvents[index];
+                          return Dismissible(
+                            key: ValueKey(event),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              color: Colors.red,
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              child: const Icon(
+                                Icons.delete,
+                                color: Colors.white,
+                              ),
+                            ),
+                            onDismissed: (_) {
+                              setState(() {
+                                events[key]!.removeAt(index);
+                              });
+                              setModalState(() {});
+                            },
+                            child: ListTile(
+                              title: Text(event.title),
+                              tileColor: event.color.withOpacity(0.2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              onTap: () {
+                                _controller.text = event.title;
+                                selectedColor = event.color;
+                                showDialog(
+                                  context: context,
+                                  builder: (_) => AlertDialog(
+                                    title: const Text('일정 수정'),
+                                    content: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        TextField(controller: _controller),
+                                        const SizedBox(height: 10),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceAround,
+                                          children: [
+                                            _colorOption(
+                                              Colors.red,
+                                              selectedColor,
+                                              (c) => selectedColor = c,
+                                              setModalState,
+                                            ),
+                                            _colorOption(
+                                              Colors.blue,
+                                              selectedColor,
+                                              (c) => selectedColor = c,
+                                              setModalState,
+                                            ),
+                                            _colorOption(
+                                              Colors.green,
+                                              selectedColor,
+                                              (c) => selectedColor = c,
+                                              setModalState,
+                                            ),
+                                            _colorOption(
+                                              Colors.orange,
+                                              selectedColor,
+                                              (c) => selectedColor = c,
+                                              setModalState,
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('취소'),
+                                      ),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          if (_controller.text.trim().isEmpty)
+                                            return;
+                                          setState(() {
+                                            event.title = _controller.text
+                                                .trim();
+                                            event.color = selectedColor;
+                                          });
+                                          setModalState(() {});
+                                          Navigator.pop(context);
+                                        },
+                                        child: const Text('저장'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _controller.clear();
+                        selectedColor = Colors.blue;
+                        showDialog(
+                          context: context,
+                          builder: (_) => AlertDialog(
+                            title: const Text('일정 추가'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextField(
+                                  controller: _controller,
+                                  decoration: const InputDecoration(
+                                    labelText: '제목',
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceAround,
+                                  children: [
+                                    _colorOption(
+                                      Colors.red,
+                                      selectedColor,
+                                      (c) => selectedColor = c,
+                                      setModalState,
+                                    ),
+                                    _colorOption(
+                                      Colors.blue,
+                                      selectedColor,
+                                      (c) => selectedColor = c,
+                                      setModalState,
+                                    ),
+                                    _colorOption(
+                                      Colors.green,
+                                      selectedColor,
+                                      (c) => selectedColor = c,
+                                      setModalState,
+                                    ),
+                                    _colorOption(
+                                      Colors.orange,
+                                      selectedColor,
+                                      (c) => selectedColor = c,
+                                      setModalState,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context),
+                                child: const Text('취소'),
+                              ),
+                              ElevatedButton(
+                                onPressed: () {
+                                  if (_controller.text.trim().isEmpty) return;
+                                  setState(() {
+                                    if (!events.containsKey(key))
+                                      events[key] = [];
+                                    events[key]!.add(
+                                      Event(
+                                        title: _controller.text.trim(),
+                                        color: selectedColor,
+                                      ),
+                                    );
+                                  });
+                                  setModalState(() {});
+                                  Navigator.pop(context);
+                                },
+                                child: const Text('저장'),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('일정 추가'),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('저장'),
-          ),
-        ],
-      ),
+        );
+      },
     );
-
-    if (result != null && result.isNotEmpty) {
-      setState(() {
-        final key = DateTime(day.year, day.month, day.day);
-        if (_events.containsKey(key)) {
-          _events[key]!.add(Event(title: result));
-        } else {
-          _events[key] = [Event(title: result)];
-        }
-      });
-    }
   }
 
-  Widget _buildEventMarkers(List<Event> events, bool isSelected) {
-    // 최대 3개까지 표시, 나머지는 +n
-    final displayEvents = events.take(3).toList();
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ...displayEvents.map(
-          (e) => Container(
-            margin: const EdgeInsets.symmetric(vertical: 1),
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.blueAccent : Colors.orangeAccent,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              e.title,
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.black,
-                fontSize: 10,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+  Widget _colorOption(
+    Color color,
+    Color selected,
+    Function(Color) onSelect,
+    void Function(void Function()) setModalState,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        onSelect(color);
+        setModalState(() {});
+      },
+      child: Container(
+        width: 24,
+        height: 24,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: selected == color
+              ? Border.all(width: 2, color: Colors.black)
+              : null,
         ),
-        if (events.length > 3)
-          Text(
-            '+${events.length - 3}',
-            style: const TextStyle(color: Colors.white, fontSize: 10),
-          ),
-      ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF262626),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  child: TableCalendar<Event>(
-                    locale: 'ko_KR',
-                    firstDay: DateTime.utc(2010, 1, 1),
-                    lastDay: DateTime.utc(2030, 12, 31),
-                    focusedDay: _focusedDay,
-                    selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-                    onDaySelected: (selectedDay, focusedDay) {
-                      setState(() {
-                        _selectedDay = selectedDay;
-                        _focusedDay = focusedDay;
-                      });
-                      _addOrEditEvent(selectedDay);
-                    },
-                    eventLoader: _getEventsForDay,
-                    headerStyle: const HeaderStyle(
-                      titleCentered: true,
-                      formatButtonVisible: false,
-                      leftChevronVisible: true,
-                      rightChevronVisible: true,
-                    ),
-                    calendarStyle: const CalendarStyle(
-                      isTodayHighlighted: true,
-                      selectedDecoration: BoxDecoration(
-                        color: Colors.blue,
-                        shape: BoxShape.circle,
-                      ),
-                      todayDecoration: BoxDecoration(
-                        color: Colors.blueAccent,
-                        shape: BoxShape.circle,
+        child: Column(
+          children: [
+            // 상단 바
+            Container(
+              height: 60,
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  IconButton(icon: Icon(Icons.menu), onPressed: () {}),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        DateFormat('yyyy.M').format(_currentMonth),
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                    daysOfWeekStyle: const DaysOfWeekStyle(
-                      weekendStyle: TextStyle(color: Colors.redAccent),
-                    ),
-                    calendarBuilders: CalendarBuilders(
-                      defaultBuilder: (context, day, focusedDay) {
-                        final events = _getEventsForDay(day);
-                        return Container(
-                          padding: const EdgeInsets.all(2),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${day.day}',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              const SizedBox(height: 2),
-                              _buildEventMarkers(events, false),
-                            ],
-                          ),
-                        );
-                      },
-                      todayBuilder: (context, day, focusedDay) {
-                        final events = _getEventsForDay(day);
-                        return Container(
-                          padding: const EdgeInsets.all(2),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${day.day}',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              const SizedBox(height: 2),
-                              _buildEventMarkers(events, false),
-                            ],
-                          ),
-                        );
-                      },
-                      selectedBuilder: (context, day, focusedDay) {
-                        final events = _getEventsForDay(day);
-                        return Container(
-                          padding: const EdgeInsets.all(2),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                '${day.day}',
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              const SizedBox(height: 2),
-                              _buildEventMarkers(events, true),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
                   ),
-                ),
+                  IconButton(
+                    icon: Icon(Icons.calendar_today_outlined),
+                    onPressed: () {},
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+            // 요일
+            Container(
+              height: 36,
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: ['일', '월', '화', '수', '목', '금', '토']
+                    .map(
+                      (d) => Expanded(
+                        child: Center(
+                          child: Text(
+                            d,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: (d == '토')
+                                  ? Colors.blue
+                                  : (d == '일')
+                                  ? Colors.red
+                                  : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            // 달력
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentMonth = _getMonthDate(index);
+                  });
+                },
+                itemBuilder: (context, pageIndex) {
+                  final monthDate = _getMonthDate(pageIndex);
+                  return _buildMonthGrid(monthDate);
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _buildMonthGrid(DateTime focusedMonth) {
+    final year = focusedMonth.year;
+    final month = focusedMonth.month;
+    final firstDayOfMonth = DateTime(year, month, 1);
+    final lastDayOfMonth = DateTime(year, month + 1, 0);
+    final int daysInMonth = lastDayOfMonth.day;
+
+    final int firstWeekday = firstDayOfMonth.weekday % 7;
+    final totalCells = firstWeekday + daysInMonth;
+    final weeks = (totalCells / 7).ceil();
+
+    final double horizontalPadding = 12;
+    final availableHeight =
+        MediaQuery.of(context).size.height - 60 - 36 - 16 - 48;
+    final double gridWidth =
+        MediaQuery.of(context).size.width - horizontalPadding * 2;
+    final double cellWidth = gridWidth / 7;
+    final double cellHeight = (availableHeight / weeks) - 1;
+    final double childAspectRatio = cellWidth / cellHeight;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      child: SizedBox(
+        height: availableHeight,
+        child: GridView.builder(
+          physics: NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            crossAxisSpacing: 6,
+            mainAxisSpacing: 6,
+            childAspectRatio: childAspectRatio,
+          ),
+          itemCount: weeks * 7,
+          itemBuilder: (context, index) {
+            final int dayIndex = index - firstWeekday + 1;
+            if (dayIndex < 1 || dayIndex > daysInMonth) return Container();
+
+            final DateTime day = DateTime(year, month, dayIndex);
+            final key = DateFormat('yyyy-MM-dd').format(day);
+            final bool isToday = _isSameDate(day, DateTime.now());
+            final bool isSelected = _isSameDate(day, _selectedDay);
+
+            final dayEvents = events[key] ?? [];
+
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedDay = day;
+                });
+                _openEventList(day);
+              },
+              child: Container(
+                padding: EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.black : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isToday && !isSelected
+                        ? Colors.black
+                        : Colors.grey.shade200,
+                    width: isToday && !isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$dayIndex',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: isSelected
+                            ? Colors.white
+                            : (day.weekday == DateTime.sunday
+                                  ? Colors.red
+                                  : (day.weekday == DateTime.saturday
+                                        ? Colors.blue
+                                        : Colors.black87)),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    ...dayEvents
+                        .take(2)
+                        .map(
+                          (e) => Container(
+                            margin: const EdgeInsets.only(top: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: e.color.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              e.title,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.black87,
+                              ),
+                            ),
+                          ),
+                        ),
+                    if (dayEvents.length > 2)
+                      Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '+${dayEvents.length - 2}',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isSelected ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 }
