@@ -20,11 +20,7 @@ Easy calendar and communication application for pets and pet owners
 
 **패키지 관리 도구**: Flutter CLI (flutter pub get, flutter build 등)
 
-**백엔드 연동**
-REST API (Dio / http)
-Firebase (Authentication, Firestore, Storage 등)
-
-**데이터베이스**: Cloud: Firebase Firestore / Supabase 등
+**백엔드, 데이터베이스**: Supabase
 
 **기타 라이브러리**
 UI: flutter_hooks, flutter_svg, cached_network_image 등

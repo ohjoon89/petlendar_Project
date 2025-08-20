@@ -1,11 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:intl/date_symbol_data_local.dart'; // 한국어 로케일 초기화
-import 'calendar_screen.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+
+// 캘린더 import
+import 'package:intl/date_symbol_data_local.dart';
+
+
+import 'login_screen.dart';
+import 'models/pet_profile.dart';
+import 'models/main_bottom_nav.dart'; // ✅ 분리된 네비바 임포트
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'https://mljwvknbhwgtcbwbmimh.supabase.co',
+    anonKey:
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1sand2a25iaHdndGNid2JtaW1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzNTc2MTksImV4cCI6MjA3MDkzMzYxOX0.IfnELTNHeJZXkmn5BWA_aY_lxK2m7J87Ew-mSjC1wE8',
+  );
+
+  // 캘린더
   await initializeDateFormatting('ko_KR', null);
-  runApp(const MyApp());
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => PetProfileProvider(),
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -16,60 +39,67 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  int _selectedIndex = 2; // 기본 캘린더 탭으로 열기
-
-  late final List<Widget> _pages;
+  bool _isLoggedIn = false;
+  bool _checkingLogin = true;
 
   @override
   void initState() {
     super.initState();
-    _pages = [
-      const Center(child: Text("홈 화면", style: TextStyle(fontSize: 24))),
-      const Center(child: Text("리스트 페이지", style: TextStyle(fontSize: 24))),
-      const CalendarScreen(), // 캘린더 페이지
-      const Center(child: Text("사진첩 페이지", style: TextStyle(fontSize: 24))),
-      const Center(child: Text("설정 페이지", style: TextStyle(fontSize: 24))),
-    ];
+    _checkLoginStatus();
   }
 
-  void _onItemTapped(int index) {
-    setState(() => _selectedIndex = index);
+  void _checkLoginStatus() async {
+    final session = Supabase.instance.client.auth.currentSession;
+    setState(() {
+      _isLoggedIn = session != null;
+      _checkingLogin = false;
+    });
+  }
+
+  void _onLoginSuccess() {
+    setState(() {
+      _isLoggedIn = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingLogin) {
+      return const MaterialApp(
+        home: Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
     return MaterialApp(
-      title: 'Calendar Fullscreen Demo',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0B0B0C),
-        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-          backgroundColor: Color(0xFF0E0E10),
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.grey,
-        ),
-      ),
-      home: Scaffold(
-        body: _pages[_selectedIndex],
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              label: '홈',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.list), label: '리스트'),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today),
-              label: '캘린더',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.photo), label: '사진첩'),
-            BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
-          ],
-          currentIndex: _selectedIndex,
-          onTap: _onItemTapped,
-        ),
-      ),
+      debugShowCheckedModeBanner: true,
+      home: _isLoggedIn
+          ? const MainBottomNav() // ✅ 분리된 네비바 시작 화면
+          : LoginScreen(onLoginSuccess: _onLoginSuccess),
     );
+  }
+}
+
+class PetProfileProvider extends ChangeNotifier {
+  final List<PetProfile> _profiles = [];
+
+  List<PetProfile> get profiles => _profiles;
+
+  void addProfile(PetProfile profile) {
+    _profiles.add(profile);
+    notifyListeners();
+  }
+
+  void updateProfile(int index, PetProfile profile) {
+    _profiles[index] = profile;
+    notifyListeners();
+  }
+
+  void deleteProfile(int index) {
+    if (index >= 0 && index < _profiles.length) {
+      _profiles.removeAt(index);
+      notifyListeners();
+    }
   }
 }

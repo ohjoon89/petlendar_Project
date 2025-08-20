@@ -2,25 +2,51 @@ name: petlendar
 description: "A new Flutter project."
 publish_to: 'none'
 version: 1.0.0+1
+
+
 environment:
   sdk: ^3.8.1
+
+
 dependencies:
   flutter:
     sdk: flutter
-  image_picker: ^1.2.0
+  image_picker: ^1.0.8
+  reorderable_grid_view: ^2.2.8
+  path_provider: ^2.0.12
+  json_annotation: ^4.9.0
+  share_plus: ^11.1.0
+  shared_preferences: ^2.3.2
+  flutter_local_notifications: ^19.4.0
+  fluttertoast: ^8.2.12
+  vibration: ^3.1.3
   cupertino_icons: ^1.0.8
+  provider: ^6.1.5
+  supabase_flutter: ^2.9.1
+
+
   table_calendar: ^3.2.0
   intl: ^0.20.2
   get: ^4.7.2
+
+  
   flutter_localizations:
     sdk: flutter
+
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: ^0.13.1
-  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.0
+  flutter_lints: ^6.0.0
+
+
 flutter:
   uses-material-design: true
+  assets:
+  - assets/src/
+
+
 flutter_icons:
   android: true
   ios: false
