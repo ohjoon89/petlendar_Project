@@ -1,6 +1,7 @@
-// calendar_screen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -12,7 +13,8 @@ class CalendarScreen extends StatefulWidget {
 class Event {
   String title;
   Color color;
-  Event({required this.title, required this.color});
+  String? imagePath; // ✅ 사진 경로 추가
+  Event({required this.title, required this.color, this.imagePath});
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
@@ -24,9 +26,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
   );
 
   final Map<String, List<Event>> events = {};
-
   late final PageController _pageController;
   late final int _initialPage;
+
+  final ImagePicker _picker = ImagePicker(); // ✅ 이미지 선택기
 
   @override
   void initState() {
@@ -40,6 +43,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return DateTime(DateTime.now().year, DateTime.now().month + monthOffset, 1);
   }
 
+  // ✅ 사진 확대 보기
+  void _showImagePreview(String path) {
+    showDialog(
+      context: context,
+      builder: (_) =>
+          Dialog(child: InteractiveViewer(child: Image.file(File(path)))),
+    );
+  }
+
+  // ✅ 사진 선택
+  Future<String?> _pickImage() async {
+    final XFile? picked = await _picker.pickImage(source: ImageSource.gallery);
+    return picked?.path;
+  }
+
   void _openEventList(DateTime day) {
     final String key = DateFormat('yyyy-MM-dd').format(day);
     showModalBottomSheet(
@@ -48,13 +66,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
       builder: (context) {
         final TextEditingController _controller = TextEditingController();
         Color selectedColor = Colors.blue;
+        String? selectedImage; // ✅ 선택된 이미지
+
         return Padding(
           padding: MediaQuery.of(context).viewInsets,
           child: StatefulBuilder(
             builder: (context, setModalState) {
               final dayEvents = events[key] ?? [];
               return Container(
-                height: MediaQuery.of(context).size.height * 0.5,
+                height: MediaQuery.of(context).size.height * 0.6,
                 padding: const EdgeInsets.all(12),
                 child: Column(
                   children: [
@@ -92,7 +112,26 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               setModalState(() {});
                             },
                             child: ListTile(
-                              title: Text(event.title),
+                              title: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(event.title),
+                                  if (event.imagePath !=
+                                      null) // ✅ 일정에 사진 있으면 썸네일
+                                    GestureDetector(
+                                      onTap: () =>
+                                          _showImagePreview(event.imagePath!),
+                                      child: Container(
+                                        margin: const EdgeInsets.only(top: 4),
+                                        height: 80,
+                                        child: Image.file(
+                                          File(event.imagePath!),
+                                          fit: BoxFit.cover,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                               tileColor: event.color.withOpacity(0.2),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(6),
@@ -100,6 +139,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               onTap: () {
                                 _controller.text = event.title;
                                 selectedColor = event.color;
+                                selectedImage = event.imagePath;
+
                                 showDialog(
                                   context: context,
                                   builder: (_) => AlertDialog(
@@ -116,29 +157,65 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             _colorOption(
                                               Colors.red,
                                               selectedColor,
-                                              (c) => selectedColor = c,
-                                              setModalState,
+                                              (c) {
+                                                selectedColor = c;
+                                                setModalState(() {});
+                                              },
                                             ),
                                             _colorOption(
                                               Colors.blue,
                                               selectedColor,
-                                              (c) => selectedColor = c,
-                                              setModalState,
+                                              (c) {
+                                                selectedColor = c;
+                                                setModalState(() {});
+                                              },
                                             ),
                                             _colorOption(
                                               Colors.green,
                                               selectedColor,
-                                              (c) => selectedColor = c,
-                                              setModalState,
+                                              (c) {
+                                                selectedColor = c;
+                                                setModalState(() {});
+                                              },
                                             ),
                                             _colorOption(
                                               Colors.orange,
                                               selectedColor,
-                                              (c) => selectedColor = c,
-                                              setModalState,
+                                              (c) {
+                                                selectedColor = c;
+                                                setModalState(() {});
+                                              },
                                             ),
                                           ],
                                         ),
+                                        const SizedBox(height: 10),
+                                        ElevatedButton.icon(
+                                          onPressed: () async {
+                                            final path = await _pickImage();
+                                            if (path != null) {
+                                              selectedImage = path;
+                                              setModalState(() {});
+                                            }
+                                          },
+                                          icon: const Icon(Icons.image),
+                                          label: const Text('사진 추가/변경'),
+                                        ),
+                                        if (selectedImage != null)
+                                          GestureDetector(
+                                            onTap: () => _showImagePreview(
+                                              selectedImage!,
+                                            ),
+                                            child: Container(
+                                              margin: const EdgeInsets.only(
+                                                top: 8,
+                                              ),
+                                              height: 80,
+                                              child: Image.file(
+                                                File(selectedImage!),
+                                                fit: BoxFit.cover,
+                                              ),
+                                            ),
+                                          ),
                                       ],
                                     ),
                                     actions: [
@@ -154,6 +231,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             event.title = _controller.text
                                                 .trim();
                                             event.color = selectedColor;
+                                            event.imagePath = selectedImage;
                                           });
                                           setModalState(() {});
                                           Navigator.pop(context);
@@ -174,6 +252,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       onPressed: () {
                         _controller.clear();
                         selectedColor = Colors.blue;
+                        selectedImage = null;
                         showDialog(
                           context: context,
                           builder: (_) => AlertDialog(
@@ -192,32 +271,57 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceAround,
                                   children: [
-                                    _colorOption(
-                                      Colors.red,
-                                      selectedColor,
-                                      (c) => selectedColor = c,
-                                      setModalState,
-                                    ),
-                                    _colorOption(
-                                      Colors.blue,
-                                      selectedColor,
-                                      (c) => selectedColor = c,
-                                      setModalState,
-                                    ),
-                                    _colorOption(
-                                      Colors.green,
-                                      selectedColor,
-                                      (c) => selectedColor = c,
-                                      setModalState,
-                                    ),
-                                    _colorOption(
-                                      Colors.orange,
-                                      selectedColor,
-                                      (c) => selectedColor = c,
-                                      setModalState,
-                                    ),
+                                    _colorOption(Colors.red, selectedColor, (
+                                      c,
+                                    ) {
+                                      selectedColor = c;
+                                      setModalState(() {});
+                                    }),
+                                    _colorOption(Colors.blue, selectedColor, (
+                                      c,
+                                    ) {
+                                      selectedColor = c;
+                                      setModalState(() {});
+                                    }),
+                                    _colorOption(Colors.green, selectedColor, (
+                                      c,
+                                    ) {
+                                      selectedColor = c;
+                                      setModalState(() {});
+                                    }),
+                                    _colorOption(Colors.orange, selectedColor, (
+                                      c,
+                                    ) {
+                                      selectedColor = c;
+                                      setModalState(() {});
+                                    }),
                                   ],
                                 ),
+                                const SizedBox(height: 10),
+                                ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final path = await _pickImage();
+                                    if (path != null) {
+                                      selectedImage = path;
+                                      setModalState(() {});
+                                    }
+                                  },
+                                  icon: const Icon(Icons.image),
+                                  label: const Text('사진 추가'),
+                                ),
+                                if (selectedImage != null)
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _showImagePreview(selectedImage!),
+                                    child: Container(
+                                      margin: const EdgeInsets.only(top: 8),
+                                      height: 80,
+                                      child: Image.file(
+                                        File(selectedImage!),
+                                        fit: BoxFit.cover,
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                             actions: [
@@ -235,6 +339,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                       Event(
                                         title: _controller.text.trim(),
                                         color: selectedColor,
+                                        imagePath: selectedImage,
                                       ),
                                     );
                                   });
@@ -260,17 +365,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  Widget _colorOption(
-    Color color,
-    Color selected,
-    Function(Color) onSelect,
-    void Function(void Function()) setModalState,
-  ) {
+  Widget _colorOption(Color color, Color selected, Function(Color) onSelect) {
     return GestureDetector(
-      onTap: () {
-        onSelect(color);
-        setModalState(() {});
-      },
+      onTap: () => onSelect(color),
       child: Container(
         width: 24,
         height: 24,
@@ -406,7 +503,6 @@ class _CalendarScreenState extends State<CalendarScreen> {
             final key = DateFormat('yyyy-MM-dd').format(day);
             final bool isToday = _isSameDate(day, DateTime.now());
             final bool isSelected = _isSameDate(day, _selectedDay);
-
             final dayEvents = events[key] ?? [];
 
             return GestureDetector(
@@ -459,15 +555,27 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               color: e.color.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: Text(
-                              e.title,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: isSelected
-                                    ? Colors.white
-                                    : Colors.black87,
-                              ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    e.title,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                                if (e.imagePath != null) // ✅ 셀에도 사진 있으면 아이콘 표시
+                                  GestureDetector(
+                                    onTap: () =>
+                                        _showImagePreview(e.imagePath!),
+                                    child: const Icon(Icons.image, size: 12),
+                                  ),
+                              ],
                             ),
                           ),
                         ),
