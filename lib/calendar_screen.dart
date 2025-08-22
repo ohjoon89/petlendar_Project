@@ -31,6 +31,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   final ImagePicker _picker = ImagePicker(); // ✅ 이미지 선택기
 
+  // 연도 범위 설정 (현재년도 ±50)
+  final int _yearRangeSpan = 50;
+
   @override
   void initState() {
     super.initState();
@@ -66,7 +69,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       builder: (context) {
         final TextEditingController _controller = TextEditingController();
         Color selectedColor = Colors.blue;
-        String? selectedImage; // ✅ 선택된 이미지
+        String? selectedImage; // ✅ 선택된 이미지 (다이얼로그 레벨)
 
         return Padding(
           padding: MediaQuery.of(context).viewInsets,
@@ -136,7 +139,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(6),
                               ),
+                              // 우측에 사진 즉시 삭제 아이콘 추가
+                              trailing: event.imagePath != null
+                                  ? IconButton(
+                                      icon: const Icon(Icons.delete_forever),
+                                      tooltip: '사진 제거',
+                                      onPressed: () {
+                                        setState(() {
+                                          event.imagePath = null;
+                                        });
+                                        setModalState(() {}); // 모달 UI 갱신
+                                      },
+                                    )
+                                  : null,
                               onTap: () {
+                                // 편집: 기존 이벤트 정보 로드
                                 _controller.text = event.title;
                                 selectedColor = event.color;
                                 selectedImage = event.imagePath;
@@ -189,16 +206,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                           ],
                                         ),
                                         const SizedBox(height: 10),
-                                        ElevatedButton.icon(
-                                          onPressed: () async {
-                                            final path = await _pickImage();
-                                            if (path != null) {
-                                              selectedImage = path;
-                                              setModalState(() {});
-                                            }
-                                          },
-                                          icon: const Icon(Icons.image),
-                                          label: const Text('사진 추가/변경'),
+                                        Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            ElevatedButton.icon(
+                                              onPressed: () async {
+                                                final path = await _pickImage();
+                                                if (path != null) {
+                                                  selectedImage = path;
+                                                  setModalState(() {});
+                                                }
+                                              },
+                                              icon: const Icon(Icons.image),
+                                              label: const Text('사진 추가/변경'),
+                                            ),
+                                            // 사진이 있으면 제거 버튼 표시
+                                            if (selectedImage != null)
+                                              OutlinedButton.icon(
+                                                onPressed: () {
+                                                  selectedImage = null;
+                                                  setModalState(() {});
+                                                },
+                                                icon: const Icon(Icons.delete),
+                                                label: const Text('사진 제거'),
+                                              ),
+                                          ],
                                         ),
                                         if (selectedImage != null)
                                           GestureDetector(
@@ -231,7 +264,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             event.title = _controller.text
                                                 .trim();
                                             event.color = selectedColor;
-                                            event.imagePath = selectedImage;
+                                            event.imagePath =
+                                                selectedImage; // null 가능 -> 사진 제거
                                           });
                                           setModalState(() {});
                                           Navigator.pop(context);
@@ -250,6 +284,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     const SizedBox(height: 8),
                     ElevatedButton.icon(
                       onPressed: () {
+                        // 추가 다이얼로그 초기화
                         _controller.clear();
                         selectedColor = Colors.blue;
                         selectedImage = null;
@@ -298,16 +333,32 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   ],
                                 ),
                                 const SizedBox(height: 10),
-                                ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final path = await _pickImage();
-                                    if (path != null) {
-                                      selectedImage = path;
-                                      setModalState(() {});
-                                    }
-                                  },
-                                  icon: const Icon(Icons.image),
-                                  label: const Text('사진 추가'),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    ElevatedButton.icon(
+                                      onPressed: () async {
+                                        final path = await _pickImage();
+                                        if (path != null) {
+                                          selectedImage = path;
+                                          setModalState(() {});
+                                        }
+                                      },
+                                      icon: const Icon(Icons.image),
+                                      label: const Text('사진 추가'),
+                                    ),
+                                    // 추가 다이얼로그에서도 사진 제거 버튼 제공
+                                    if (selectedImage != null)
+                                      OutlinedButton.icon(
+                                        onPressed: () {
+                                          selectedImage = null;
+                                          setModalState(() {});
+                                        },
+                                        icon: const Icon(Icons.delete),
+                                        label: const Text('사진 제거'),
+                                      ),
+                                  ],
                                 ),
                                 if (selectedImage != null)
                                   GestureDetector(
@@ -382,6 +433,133 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
+  // ✅ 년/월 선택 다이얼로그 (Wheel)
+  Future<void> _showYearMonthPicker() async {
+    final int nowYear = DateTime.now().year;
+    final int startYear = nowYear - _yearRangeSpan;
+    final int yearCount = _yearRangeSpan * 2 + 1;
+
+    int selectedYear = _currentMonth.year;
+    int selectedMonth = _currentMonth.month;
+
+    final FixedExtentScrollController yearController =
+        FixedExtentScrollController(initialItem: selectedYear - startYear);
+    final FixedExtentScrollController monthController =
+        FixedExtentScrollController(initialItem: selectedMonth - 1);
+
+    await showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("년 / 월 선택"),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 300,
+            child: Column(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: ListWheelScrollView.useDelegate(
+                          controller: yearController,
+                          itemExtent: 44,
+                          perspective: 0.005,
+                          physics: const FixedExtentScrollPhysics(),
+                          onSelectedItemChanged: (index) {
+                            selectedYear = startYear + index;
+                          },
+                          childDelegate: ListWheelChildBuilderDelegate(
+                            builder: (context, index) {
+                              final year = startYear + index;
+                              final isSelected = year == selectedYear;
+                              return Center(
+                                child: Text(
+                                  "$year 년",
+                                  style: TextStyle(
+                                    fontSize: isSelected ? 18 : 16,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isSelected
+                                        ? Colors.blue
+                                        : Colors.black,
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: yearCount,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ListWheelScrollView.useDelegate(
+                          controller: monthController,
+                          itemExtent: 44,
+                          physics: const FixedExtentScrollPhysics(),
+                          onSelectedItemChanged: (index) {
+                            selectedMonth = index + 1;
+                          },
+                          childDelegate: ListWheelChildBuilderDelegate(
+                            builder: (context, index) {
+                              final month = index + 1;
+                              final isSelected = month == selectedMonth;
+                              return Center(
+                                child: Text(
+                                  "$month 월",
+                                  style: TextStyle(
+                                    fontSize: isSelected ? 18 : 16,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                    color: isSelected
+                                        ? Colors.blue
+                                        : Colors.black,
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text("취소"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                // 선택된 년월로 이동
+                setState(() {
+                  _currentMonth = DateTime(selectedYear, selectedMonth, 1);
+                });
+
+                // PageView 페이지 계산 및 이동
+                final int diffMonths =
+                    (selectedYear - DateTime.now().year) * 12 +
+                    (selectedMonth - DateTime.now().month);
+                _pageController.jumpToPage(_initialPage + diffMonths);
+
+                Navigator.pop(context);
+              },
+              child: const Text("확인"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -392,16 +570,16 @@ class _CalendarScreenState extends State<CalendarScreen> {
             // 상단 바
             Container(
               height: 60,
-              padding: EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
-                  IconButton(icon: Icon(Icons.menu), onPressed: () {}),
-                  SizedBox(width: 8),
+                  IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Center(
                       child: Text(
                         DateFormat('yyyy.M').format(_currentMonth),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                         ),
@@ -409,8 +587,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.calendar_today_outlined),
-                    onPressed: () {},
+                    icon: const Icon(Icons.calendar_today_outlined),
+                    onPressed: _showYearMonthPicker, // ✅ 년월 뷰 열기
                   ),
                 ],
               ),
@@ -418,7 +596,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
             // 요일
             Container(
               height: 36,
-              padding: EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: ['일', '월', '화', '수', '목', '금', '토']
                     .map(
@@ -487,7 +665,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
       child: SizedBox(
         height: availableHeight,
         child: GridView.builder(
-          physics: NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 7,
             crossAxisSpacing: 6,
@@ -513,7 +691,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 _openEventList(day);
               },
               child: Container(
-                padding: EdgeInsets.all(4),
+                padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: isSelected ? Colors.black : Colors.white,
                   borderRadius: BorderRadius.circular(10),
