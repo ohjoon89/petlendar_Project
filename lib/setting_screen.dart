@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:vibration/vibration.dart';
+import '../services/auth_service.dart';
+import 'login_screen.dart';
 
 class SettingScreen extends StatefulWidget {
   const SettingScreen({super.key});
@@ -17,7 +19,7 @@ class _SettingScreenState extends State<SettingScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSettings(); // 앱 시작 시 저장된 설정 불러오기
+    _loadSettings();
   }
 
   Future<void> _loadSettings() async {
@@ -38,21 +40,18 @@ class _SettingScreenState extends State<SettingScreen> {
     setState(() => _vibration = value);
     _saveSettings();
 
-
-    //에뮬레이터 진동 기능 X, 기능은 문제 없음
     if (_vibration && await Vibration.hasVibrator()) {
-      Vibration.vibrate(duration: 250,); // 0.25초 진동
+      Vibration.vibrate(duration: 250);
     }
 
     Fluttertoast.showToast(
-    msg: "진동 ${_vibration ? '켜짐' : '꺼짐'}",
-    toastLength: Toast.LENGTH_SHORT,
-    gravity: ToastGravity.BOTTOM,
-    backgroundColor: Color.fromARGB(178, 0, 0, 0),
-    textColor: Colors.white,
-    fontSize: 16.0,
-    // 아이콘 제거 → 기본적으로 Fluttertoast는 아이콘이 없으므로 그대로 메시지만 표시
-  );
+      msg: "진동 ${_vibration ? '켜짐' : '꺼짐'}",
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: const Color.fromARGB(178, 0, 0, 0),
+      textColor: Colors.white,
+      fontSize: 16.0,
+    );
   }
 
   void _handleNotificationChanged(bool value) {
@@ -60,53 +59,100 @@ class _SettingScreenState extends State<SettingScreen> {
     _saveSettings();
 
     Fluttertoast.showToast(
-    msg: "알림 ${_notifications ? '허용' : '차단'}",
-    toastLength: Toast.LENGTH_SHORT,
-    gravity: ToastGravity.BOTTOM,
-    backgroundColor: Color.fromARGB(178, 0, 0, 0),
-    textColor: Colors.white,
-    fontSize: 16.0,
-    // 아이콘 제거
-  );
+      msg: "알림 ${_notifications ? '허용' : '차단'}",
+      toastLength: Toast.LENGTH_SHORT,
+      gravity: ToastGravity.BOTTOM,
+      backgroundColor: const Color.fromARGB(178, 0, 0, 0),
+      textColor: Colors.white,
+      fontSize: 16.0,
+    );
+  }
+
+  Future<void> _handleLogout() async {
+    try {
+      await AuthService.signOutAll();
+
+      Fluttertoast.showToast(
+        msg: "로그아웃 완료",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: const Color.fromARGB(178, 0, 0, 0),
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
+
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+          (route) => false,
+        );
+      }
+    } catch (e) {
+      debugPrint('로그아웃 처리 중 오류: $e');
+      Fluttertoast.showToast(
+        msg: "로그아웃 중 오류 발생",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.BOTTOM,
+        backgroundColor: const Color.fromARGB(178, 255, 0, 0),
+        textColor: Colors.white,
+        fontSize: 16.0,
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('설정'),
-        centerTitle: true,
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      appBar: AppBar(title: const Text('설정'), centerTitle: true),
+      body: Stack(
         children: [
-          const Text(
-            '시스템 설정',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              const Text(
+                '시스템 설정',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const Divider(height: 20, thickness: 1),
+              SwitchListTile(
+                title: const Text('진동'),
+                value: _vibration,
+                onChanged: _handleVibrationChanged,
+              ),
+              SwitchListTile(
+                title: const Text('알림'),
+                value: _notifications,
+                onChanged: _handleNotificationChanged,
+              ),
+              const SizedBox(height: 30),
+              const Text(
+                '앱 정보',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const Divider(height: 20, thickness: 1),
+              const ListTile(
+                leading: Icon(Icons.info_outline),
+                title: Text('버전'),
+                subtitle: Text('1.0.0'),
+              ),
+              const SizedBox(height: 60),
+            ],
           ),
-          const Divider(height: 20, thickness: 1),
-
-          SwitchListTile(
-            title: const Text('진동'),
-            value: _vibration,
-            onChanged: _handleVibrationChanged,
-          ),
-          SwitchListTile(
-            title: const Text('알림'),
-            value: _notifications,
-            onChanged: _handleNotificationChanged,
-          ),
-
-          const SizedBox(height: 30),
-          const Text(
-            '앱 정보',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const Divider(height: 20, thickness: 1),
-          ListTile(
-            leading: const Icon(Icons.info_outline),
-            title: const Text('버전'),
-            subtitle: const Text('1.0.0'),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: GestureDetector(
+              onTap: _handleLogout,
+              child: const Text(
+                '로그아웃',
+                style: TextStyle(
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
           ),
         ],
       ),

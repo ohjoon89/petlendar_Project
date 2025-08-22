@@ -26,60 +26,68 @@ class _ProfileViewPageState extends State<ProfileViewPage> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = Provider.of<PetProfileProvider>(context);
     final double screenHeight = MediaQuery.of(context).size.height;
     final double screenWidth = MediaQuery.of(context).size.width;
     final double backgroundHeight = screenHeight * 0.5;
     final double profileRadius = 70;
-    final provider = Provider.of<PetProfileProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(profile.name),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: () async {
-              final updatedProfile = await Navigator.push<PetProfile>(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ProfileEditPage(profile: profile),
-                ),
-              );
-              if (updatedProfile != null) {
-                setState(() => profile = updatedProfile);
-                provider.updateProfile(widget.index, updatedProfile);
-              }
-            },
+  leading: IconButton(
+    icon: const Icon(Icons.arrow_back), // 왼쪽 상단 닫기 버튼
+    onPressed: () {
+      Navigator.pop(context); // 상세보기 닫기
+    },
+  ),
+  title: Text(profile.name),
+  actions: [
+    IconButton(
+      icon: const Icon(Icons.edit),
+      onPressed: () async {
+        final updatedProfile = await Navigator.push<PetProfile>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ProfileEditPage(profile: profile),
           ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.red),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("프로필 삭제"),
-                  content: const Text("정말 삭제하시겠습니까?"),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("취소"),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        final provider = Provider.of<PetProfileProvider>(context, listen: false);
-                        provider.deleteProfile(widget.index);
-                        Navigator.pop(context); // 다이얼로그 닫기
-                        Navigator.pop(context); // 상세보기 페이지 닫기
-                      },
-                      child: const Text("삭제", style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
-                ),
-              );
-            },
+        );
+        if (updatedProfile != null) {
+          setState(() => profile = updatedProfile);
+          final provider = Provider.of<PetProfileProvider>(context, listen: false);
+          provider.updateProfile(widget.index, updatedProfile);
+        }
+      },
+    ),
+    IconButton(
+      icon: const Icon(Icons.delete, color: Colors.red),
+      onPressed: () {
+        final provider = Provider.of<PetProfileProvider>(context, listen: false);
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("프로필 삭제"),
+            content: const Text("정말 삭제하시겠습니까?"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("취소"),
+              ),
+              TextButton(
+                onPressed: () {
+                  provider.deleteProfile(widget.index);
+                  Navigator.pop(context); // 다이얼로그 닫기
+                  Navigator.pop(context); // 상세보기 페이지 닫기
+                },
+                child: const Text("삭제", style: TextStyle(color: Colors.red)),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
+    ),
+  ],
+),
+
       body: SingleChildScrollView(
         child: Stack(
           children: [
@@ -133,7 +141,12 @@ class _ProfileViewPageState extends State<ProfileViewPage> {
             ),
             // 나이 + 메모 내용
             Padding(
-              padding: EdgeInsets.only(top: backgroundHeight + profileRadius + 32, left: 16, right: 16, bottom: 16),
+              padding: EdgeInsets.only(
+                top: backgroundHeight + profileRadius + 32,
+                left: 16,
+                right: 16,
+                bottom: 16,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -152,6 +165,30 @@ class _ProfileViewPageState extends State<ProfileViewPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteDialog(PetProfileProvider provider, int index) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("프로필 삭제"),
+        content: const Text("정말 삭제하시겠습니까?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("취소"),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.deleteProfile(index);
+              Navigator.pop(context); // 다이얼로그 닫기
+              Navigator.pop(context); // 상세보기 닫기
+            },
+            child: const Text("삭제", style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }

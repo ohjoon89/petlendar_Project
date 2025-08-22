@@ -1,58 +1,156 @@
+// login_screen.dart
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:app_links/app_links.dart';
+import '../services/auth_service.dart';
+import '../models/main_bottom_nav.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class LoginScreen extends StatelessWidget {
-  final VoidCallback? onLoginSuccess; // 로그인 성공 시 호출될 콜백
+class LoginScreen extends StatefulWidget {
+  final VoidCallback? onLoginSuccess;
 
   const LoginScreen({super.key, this.onLoginSuccess});
 
   @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final AppLinks _appLinks = AppLinks();
+
+  StreamSubscription? _sub;
+  StreamSubscription? _authSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenAppLinks();
+    _listenAuthChanges();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    _authSub?.cancel();
+    super.dispose();
+  }
+
+  void _listenAppLinks() {
+    _sub = _appLinks.uriLinkStream.listen((Uri? uri) async {
+      if (uri != null &&
+          uri.scheme == 'petlendar' &&
+          uri.host == 'login-callback') {
+        // OAuth 완료 후에도 onAuthStateChange로 처리됨
+      }
+    });
+  }
+
+  void _listenAuthChanges() {
+    _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+      final event = data.event;
+      final session = data.session;
+
+      if (event == AuthChangeEvent.signedIn && session != null) {
+        widget.onLoginSuccess?.call();
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const MainBottomNav()),
+          );
+        }
+      }
+
+      if (event == AuthChangeEvent.signedOut) {
+        // 로그아웃 처리 필요 시 여기에 작성 가능
+      }
+    });
+  }
+
+  // 이메일 로그인
+  Future<void> _handleEmailLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    final success = await AuthService.signInWithEmail(email, password);
+
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("아이디/비밀번호 로그인 실패")),
+      );
+    }
+  }
+
+  // 구글 로그인
+  Future<void> _handleGoogleLogin() async {
+    try {
+      await AuthService.signInWithGoogle();
+    } catch (e) {
+      debugPrint("구글 로그인 에러: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("구글 로그인 중 오류 발생")),
+        );
+      }
+    }
+  }
+
+  // 카카오 로그인
+  Future<void> _handleKakaoLogin() async {
+    try {
+      await AuthService.signInWithKakao();
+    } catch (e) {
+      debugPrint("카카오 로그인 에러: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("카카오 로그인 중 오류 발생")),
+        );
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
+      backgroundColor: Colors.white,
       body: SingleChildScrollView(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             const SizedBox(height: 140),
-
-            // 로고
             Image.asset(
               'assets/src/petlendar.png',
               width: 200,
             ),
-
-            // 아이디 입력
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 5),
               child: SizedBox(
                 width: 300,
                 child: TextField(
-                  decoration: InputDecoration(
+                  controller: _emailController,
+                  decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    hintText: '아이디',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    hintText: '아이디 (이메일)',
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10),
                   ),
                 ),
               ),
             ),
-
-            // 비밀번호 입력
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 5),
               child: SizedBox(
                 width: 300,
                 child: TextField(
+                  controller: _passwordController,
                   obscureText: true,
-                  decoration: InputDecoration(
+                  decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     hintText: '비밀번호',
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 10),
                   ),
                 ),
               ),
             ),
-
-            // 회원가입 / 아이디 찾기 / 비밀번호 찾기
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -70,18 +168,15 @@ class LoginScreen extends StatelessWidget {
                 ),
               ],
             ),
-
             const SizedBox(height: 20),
-
-            // 로그인 버튼
             SizedBox(
               width: 300,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {},
+                onPressed: _handleEmailLogin,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color.fromARGB(0, 230, 230, 230),
-                  shape: RoundedRectangleBorder(
+                  backgroundColor: const Color.fromARGB(255, 230, 230, 230),
+                  shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero,
                   ),
                 ),
@@ -95,8 +190,6 @@ class LoginScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-
-            // 구글 로그인 버튼 (Ink.image 적용)
             Material(
               color: Colors.transparent,
               child: Ink.image(
@@ -106,15 +199,11 @@ class LoginScreen extends StatelessWidget {
                 fit: BoxFit.cover,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: () {
-
-                  },
+                  onTap: _handleGoogleLogin,
                 ),
               ),
             ),
             const SizedBox(height: 10),
-
-            // 카카오 로그인 버튼 (Ink.image 적용)
             Material(
               color: Colors.transparent,
               child: Ink.image(
@@ -124,22 +213,22 @@ class LoginScreen extends StatelessWidget {
                 fit: BoxFit.cover,
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: () {
-
-                  },
+                  onTap: _handleKakaoLogin,
                 ),
               ),
             ),
             const SizedBox(height: 10),
-
-            // 개발자 로그인 버튼
             ElevatedButton(
               onPressed: () {
-                if (onLoginSuccess != null) onLoginSuccess!();
+                widget.onLoginSuccess?.call();
+                if (mounted) {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (_) => const MainBottomNav()),
+                  );
+                }
               },
               child: const Text("개발자 로그인"),
             ),
-
             const SizedBox(height: 20),
           ],
         ),
