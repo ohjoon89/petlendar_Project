@@ -13,7 +13,7 @@ class CalendarScreen extends StatefulWidget {
 class Event {
   String title;
   Color color;
-  String? imagePath; // ✅ 사진 경로 추가
+  String? imagePath;
   Event({required this.title, required this.color, this.imagePath});
 }
 
@@ -24,14 +24,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
     DateTime.now().month,
     1,
   );
-
   final Map<String, List<Event>> events = {};
   late final PageController _pageController;
   late final int _initialPage;
-
-  final ImagePicker _picker = ImagePicker(); // ✅ 이미지 선택기
-
-  // 연도 범위 설정 (현재년도 ±50)
+  final ImagePicker _picker = ImagePicker();
   final int _yearRangeSpan = 50;
 
   @override
@@ -46,7 +42,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
     return DateTime(DateTime.now().year, DateTime.now().month + monthOffset, 1);
   }
 
-  // ✅ 사진 확대 보기
+  Future<String?> _pickImage() async {
+    final XFile? picked = await _picker.pickImage(source: ImageSource.gallery);
+    return picked?.path;
+  }
+
   void _showImagePreview(String path) {
     showDialog(
       context: context,
@@ -55,390 +55,43 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  // ✅ 사진 선택
-  Future<String?> _pickImage() async {
-    final XFile? picked = await _picker.pickImage(source: ImageSource.gallery);
-    return picked?.path;
+  bool _isSameDate(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  void _openEventList(DateTime day) {
-    final String key = DateFormat('yyyy-MM-dd').format(day);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        final TextEditingController _controller = TextEditingController();
-        Color selectedColor = Colors.blue;
-        String? selectedImage; // ✅ 선택된 이미지 (다이얼로그 레벨)
-
-        return Padding(
-          padding: MediaQuery.of(context).viewInsets,
-          child: StatefulBuilder(
-            builder: (context, setModalState) {
-              final dayEvents = events[key] ?? [];
-              return Container(
-                height: MediaQuery.of(context).size.height * 0.6,
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    Text(
-                      '일정 (${DateFormat('yyyy-MM-dd').format(day)})',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: dayEvents.length,
-                        itemBuilder: (context, index) {
-                          final event = dayEvents[index];
-                          return Dismissible(
-                            key: ValueKey(event),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              color: Colors.red,
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 20,
-                              ),
-                              child: const Icon(
-                                Icons.delete,
-                                color: Colors.white,
-                              ),
-                            ),
-                            onDismissed: (_) {
-                              setState(() {
-                                events[key]!.removeAt(index);
-                              });
-                              setModalState(() {});
-                            },
-                            child: ListTile(
-                              title: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(event.title),
-                                  if (event.imagePath !=
-                                      null) // ✅ 일정에 사진 있으면 썸네일
-                                    GestureDetector(
-                                      onTap: () =>
-                                          _showImagePreview(event.imagePath!),
-                                      child: Container(
-                                        margin: const EdgeInsets.only(top: 4),
-                                        height: 80,
-                                        child: Image.file(
-                                          File(event.imagePath!),
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              tileColor: event.color.withOpacity(0.2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              // 우측에 사진 즉시 삭제 아이콘 추가
-                              trailing: event.imagePath != null
-                                  ? IconButton(
-                                      icon: const Icon(Icons.delete_forever),
-                                      tooltip: '사진 제거',
-                                      onPressed: () {
-                                        setState(() {
-                                          event.imagePath = null;
-                                        });
-                                        setModalState(() {}); // 모달 UI 갱신
-                                      },
-                                    )
-                                  : null,
-                              onTap: () {
-                                // 편집: 기존 이벤트 정보 로드
-                                _controller.text = event.title;
-                                selectedColor = event.color;
-                                selectedImage = event.imagePath;
-
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => AlertDialog(
-                                    title: const Text('일정 수정'),
-                                    content: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        TextField(controller: _controller),
-                                        const SizedBox(height: 10),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceAround,
-                                          children: [
-                                            _colorOption(
-                                              Colors.red,
-                                              selectedColor,
-                                              (c) {
-                                                selectedColor = c;
-                                                setModalState(() {});
-                                              },
-                                            ),
-                                            _colorOption(
-                                              Colors.blue,
-                                              selectedColor,
-                                              (c) {
-                                                selectedColor = c;
-                                                setModalState(() {});
-                                              },
-                                            ),
-                                            _colorOption(
-                                              Colors.green,
-                                              selectedColor,
-                                              (c) {
-                                                selectedColor = c;
-                                                setModalState(() {});
-                                              },
-                                            ),
-                                            _colorOption(
-                                              Colors.orange,
-                                              selectedColor,
-                                              (c) {
-                                                selectedColor = c;
-                                                setModalState(() {});
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.spaceBetween,
-                                          children: [
-                                            ElevatedButton.icon(
-                                              onPressed: () async {
-                                                final path = await _pickImage();
-                                                if (path != null) {
-                                                  selectedImage = path;
-                                                  setModalState(() {});
-                                                }
-                                              },
-                                              icon: const Icon(Icons.image),
-                                              label: const Text('사진 추가/변경'),
-                                            ),
-                                            // 사진이 있으면 제거 버튼 표시
-                                            if (selectedImage != null)
-                                              OutlinedButton.icon(
-                                                onPressed: () {
-                                                  selectedImage = null;
-                                                  setModalState(() {});
-                                                },
-                                                icon: const Icon(Icons.delete),
-                                                label: const Text('사진 제거'),
-                                              ),
-                                          ],
-                                        ),
-                                        if (selectedImage != null)
-                                          GestureDetector(
-                                            onTap: () => _showImagePreview(
-                                              selectedImage!,
-                                            ),
-                                            child: Container(
-                                              margin: const EdgeInsets.only(
-                                                top: 8,
-                                              ),
-                                              height: 80,
-                                              child: Image.file(
-                                                File(selectedImage!),
-                                                fit: BoxFit.cover,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                    actions: [
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(context),
-                                        child: const Text('취소'),
-                                      ),
-                                      ElevatedButton(
-                                        onPressed: () {
-                                          if (_controller.text.trim().isEmpty)
-                                            return;
-                                          setState(() {
-                                            event.title = _controller.text
-                                                .trim();
-                                            event.color = selectedColor;
-                                            event.imagePath =
-                                                selectedImage; // null 가능 -> 사진 제거
-                                          });
-                                          setModalState(() {});
-                                          Navigator.pop(context);
-                                        },
-                                        child: const Text('저장'),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        // 추가 다이얼로그 초기화
-                        _controller.clear();
-                        selectedColor = Colors.blue;
-                        selectedImage = null;
-                        showDialog(
-                          context: context,
-                          builder: (_) => AlertDialog(
-                            title: const Text('일정 추가'),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                TextField(
-                                  controller: _controller,
-                                  decoration: const InputDecoration(
-                                    labelText: '제목',
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceAround,
-                                  children: [
-                                    _colorOption(Colors.red, selectedColor, (
-                                      c,
-                                    ) {
-                                      selectedColor = c;
-                                      setModalState(() {});
-                                    }),
-                                    _colorOption(Colors.blue, selectedColor, (
-                                      c,
-                                    ) {
-                                      selectedColor = c;
-                                      setModalState(() {});
-                                    }),
-                                    _colorOption(Colors.green, selectedColor, (
-                                      c,
-                                    ) {
-                                      selectedColor = c;
-                                      setModalState(() {});
-                                    }),
-                                    _colorOption(Colors.orange, selectedColor, (
-                                      c,
-                                    ) {
-                                      selectedColor = c;
-                                      setModalState(() {});
-                                    }),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    ElevatedButton.icon(
-                                      onPressed: () async {
-                                        final path = await _pickImage();
-                                        if (path != null) {
-                                          selectedImage = path;
-                                          setModalState(() {});
-                                        }
-                                      },
-                                      icon: const Icon(Icons.image),
-                                      label: const Text('사진 추가'),
-                                    ),
-                                    // 추가 다이얼로그에서도 사진 제거 버튼 제공
-                                    if (selectedImage != null)
-                                      OutlinedButton.icon(
-                                        onPressed: () {
-                                          selectedImage = null;
-                                          setModalState(() {});
-                                        },
-                                        icon: const Icon(Icons.delete),
-                                        label: const Text('사진 제거'),
-                                      ),
-                                  ],
-                                ),
-                                if (selectedImage != null)
-                                  GestureDetector(
-                                    onTap: () =>
-                                        _showImagePreview(selectedImage!),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(top: 8),
-                                      height: 80,
-                                      child: Image.file(
-                                        File(selectedImage!),
-                                        fit: BoxFit.cover,
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(context),
-                                child: const Text('취소'),
-                              ),
-                              ElevatedButton(
-                                onPressed: () {
-                                  if (_controller.text.trim().isEmpty) return;
-                                  setState(() {
-                                    if (!events.containsKey(key))
-                                      events[key] = [];
-                                    events[key]!.add(
-                                      Event(
-                                        title: _controller.text.trim(),
-                                        color: selectedColor,
-                                        imagePath: selectedImage,
-                                      ),
-                                    );
-                                  });
-                                  setModalState(() {});
-                                  Navigator.pop(context);
-                                },
-                                child: const Text('저장'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.add),
-                      label: const Text('일정 추가'),
-                    ),
-                  ],
-                ),
-              );
-            },
+  void showOverlayToast(BuildContext context, String message) {
+    final overlay = Overlay.of(context);
+    final overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        bottom: 50,
+        left: MediaQuery.of(context).size.width * 0.1,
+        width: MediaQuery.of(context).size.width * 0.8,
+        child: Material(
+          color: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Center(
+              child: Text(message, style: const TextStyle(color: Colors.white)),
+            ),
           ),
-        );
-      },
-    );
-  }
-
-  Widget _colorOption(Color color, Color selected, Function(Color) onSelect) {
-    return GestureDetector(
-      onTap: () => onSelect(color),
-      child: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: selected == color
-              ? Border.all(width: 2, color: Colors.black)
-              : null,
         ),
       ),
     );
+
+    overlay.insert(overlayEntry);
+    Future.delayed(const Duration(seconds: 2), () {
+      overlayEntry.remove();
+    });
   }
 
-  // ✅ 년/월 선택 다이얼로그 (Wheel)
   Future<void> _showYearMonthPicker() async {
     final int nowYear = DateTime.now().year;
     final int startYear = nowYear - _yearRangeSpan;
     final int yearCount = _yearRangeSpan * 2 + 1;
-
     int selectedYear = _currentMonth.year;
     int selectedMonth = _currentMonth.month;
 
@@ -450,17 +103,21 @@ class _CalendarScreenState extends State<CalendarScreen> {
     await showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          title: const Text("년 / 월 선택"),
-          content: SizedBox(
-            width: double.maxFinite,
-            height: 300,
-            child: Column(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Expanded(
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("년 / 월 선택"),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 300,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          setDialogState(() {}); // 스크롤 시 색상 갱신
+                          return false;
+                        },
                         child: ListWheelScrollView.useDelegate(
                           controller: yearController,
                           itemExtent: 44,
@@ -468,11 +125,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           physics: const FixedExtentScrollPhysics(),
                           onSelectedItemChanged: (index) {
                             selectedYear = startYear + index;
+                            setDialogState(() {}); // 선택 변경 시 색상 갱신
                           },
                           childDelegate: ListWheelChildBuilderDelegate(
                             builder: (context, index) {
                               final year = startYear + index;
-                              final isSelected = year == selectedYear;
+                              final int currentIndex =
+                                  yearController.selectedItem;
+                              final isSelected = index == currentIndex;
                               return Center(
                                 child: Text(
                                   "$year 년",
@@ -492,19 +152,28 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: NotificationListener<ScrollNotification>(
+                        onNotification: (notification) {
+                          setDialogState(() {}); // 스크롤 시 색상 갱신
+                          return false;
+                        },
                         child: ListWheelScrollView.useDelegate(
                           controller: monthController,
                           itemExtent: 44,
                           physics: const FixedExtentScrollPhysics(),
                           onSelectedItemChanged: (index) {
                             selectedMonth = index + 1;
+                            setDialogState(() {});
                           },
                           childDelegate: ListWheelChildBuilderDelegate(
                             builder: (context, index) {
                               final month = index + 1;
-                              final isSelected = month == selectedMonth;
+                              final int currentIndex =
+                                  monthController.selectedItem;
+                              final isSelected = index == currentIndex;
                               return Center(
                                 child: Text(
                                   "$month 월",
@@ -524,119 +193,608 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("취소"),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _currentMonth = DateTime(selectedYear, selectedMonth, 1);
+                    });
+                    final int diffMonths =
+                        (selectedYear - DateTime.now().year) * 12 +
+                        (selectedMonth - DateTime.now().month);
+                    _pageController.jumpToPage(_initialPage + diffMonths);
+                    Navigator.pop(context);
+                  },
+                  child: const Text("확인"),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text("취소"),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                // 선택된 년월로 이동
-                setState(() {
-                  _currentMonth = DateTime(selectedYear, selectedMonth, 1);
-                });
-
-                // PageView 페이지 계산 및 이동
-                final int diffMonths =
-                    (selectedYear - DateTime.now().year) * 12 +
-                    (selectedMonth - DateTime.now().month);
-                _pageController.jumpToPage(_initialPage + diffMonths);
-
-                Navigator.pop(context);
-              },
-              child: const Text("확인"),
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 상단 바
-            Container(
-              height: 60,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        DateFormat('yyyy.M').format(_currentMonth),
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
+  void _openEventList(DateTime day) {
+    final String key = DateFormat('yyyy-MM-dd').format(day);
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        final TextEditingController _controller = TextEditingController();
+        return Padding(
+          padding: MediaQuery.of(context).viewInsets,
+          child: StatefulBuilder(
+            builder: (context, setModalState) {
+              Color _defaultColor = Colors.blue;
+              final dayEvents = events[key] ?? [];
+
+              List<Widget> _buildColorOptions(
+                Color selected,
+                Function(Color) onSelect,
+              ) {
+                final colors = [
+                  Colors.red,
+                  Colors.blue,
+                  Colors.green,
+                  Colors.orange,
+                  Colors.purple,
+                ];
+                return colors.map((c) {
+                  return GestureDetector(
+                    onTap: () => onSelect(c),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 6),
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: selected == c
+                            ? Border.all(width: 2, color: Colors.black)
+                            : null,
                       ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.calendar_today_outlined),
-                    onPressed: _showYearMonthPicker, // ✅ 년월 뷰 열기
-                  ),
-                ],
-              ),
-            ),
-            // 요일
-            Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: ['일', '월', '화', '수', '목', '금', '토']
-                    .map(
-                      (d) => Expanded(
-                        child: Center(
-                          child: Text(
-                            d,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: (d == '토')
-                                  ? Colors.blue
-                                  : (d == '일')
-                                  ? Colors.red
-                                  : Colors.black87,
-                            ),
-                          ),
-                        ),
+                  );
+                }).toList();
+              }
+
+              final ButtonStyle smallElevatedStyle = ElevatedButton.styleFrom(
+                minimumSize: const Size(120, 40),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(fontSize: 14),
+              );
+
+              final ButtonStyle smallOutlinedStyle = OutlinedButton.styleFrom(
+                minimumSize: const Size(120, 40),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(fontSize: 14),
+              );
+
+              return Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '일정 (${DateFormat('yyyy-MM-dd').format(day)})',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                    )
-                    .toList(),
-              ),
-            ),
-            // 달력
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentMonth = _getMonthDate(index);
-                  });
-                },
-                itemBuilder: (context, pageIndex) {
-                  final monthDate = _getMonthDate(pageIndex);
-                  return _buildMonthGrid(monthDate);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: ListView.builder(
+                        itemCount: dayEvents.length,
+                        itemBuilder: (context, index) {
+                          final event = dayEvents[index];
+                          return Dismissible(
+                            key: ValueKey(event.hashCode ^ index),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              color: Colors.red,
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                              ),
+                              child: const Icon(
+                                Icons.delete,
+                                color: Colors.white,
+                              ),
+                            ),
+                            onDismissed: (_) {
+                              setState(() {
+                                events[key]!.removeAt(index);
+                              });
+                              setModalState(() {});
+                            },
+                            child: Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                onTap: () {
+                                  _controller.text = event.title;
+                                  Color selectedColor = event.color;
+                                  String? selectedImage = event.imagePath;
+
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => StatefulBuilder(
+                                      builder: (context, setDialogState) {
+                                        return AlertDialog(
+                                          title: const Text('일정 수정'),
+                                          content: SingleChildScrollView(
+                                            child: Column(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                TextField(
+                                                  controller: _controller,
+                                                ),
+                                                const SizedBox(height: 10),
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: _buildColorOptions(
+                                                    selectedColor,
+                                                    (c) {
+                                                      setDialogState(() {
+                                                        selectedColor = c;
+                                                      });
+                                                    },
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.center,
+                                                  children: [
+                                                    const Text('선택 색상: '),
+                                                    Container(
+                                                      width: 28,
+                                                      height: 28,
+                                                      decoration: BoxDecoration(
+                                                        color: selectedColor,
+                                                        shape: BoxShape.circle,
+                                                        border: Border.all(
+                                                          color: Colors.black12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 10),
+                                                Column(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Row(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .spaceEvenly,
+                                                      children: [
+                                                        SizedBox(
+                                                          width: 120,
+                                                          child: ElevatedButton.icon(
+                                                            style:
+                                                                smallElevatedStyle,
+                                                            icon: const Icon(
+                                                              Icons.image,
+                                                              size: 20,
+                                                            ),
+                                                            label: Text(
+                                                              selectedImage ==
+                                                                      null
+                                                                  ? '사진 추가'
+                                                                  : '사진 변경',
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                            onPressed: () async {
+                                                              final path =
+                                                                  await _pickImage();
+                                                              if (path !=
+                                                                  null) {
+                                                                setDialogState(
+                                                                  () {
+                                                                    selectedImage =
+                                                                        path;
+                                                                  },
+                                                                );
+                                                              }
+                                                            },
+                                                          ),
+                                                        ),
+                                                        if (selectedImage !=
+                                                            null)
+                                                          SizedBox(
+                                                            width: 120,
+                                                            child: OutlinedButton.icon(
+                                                              style:
+                                                                  smallOutlinedStyle,
+                                                              icon: const Icon(
+                                                                Icons.delete,
+                                                                size: 20,
+                                                              ),
+                                                              label: const Text(
+                                                                '사진 제거',
+                                                              ),
+                                                              onPressed: () {
+                                                                setDialogState(
+                                                                  () {
+                                                                    selectedImage =
+                                                                        null;
+                                                                  },
+                                                                );
+                                                              },
+                                                            ),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                    AnimatedSize(
+                                                      duration: const Duration(
+                                                        milliseconds: 180,
+                                                      ),
+                                                      curve: Curves.easeInOut,
+                                                      child:
+                                                          selectedImage != null
+                                                          ? GestureDetector(
+                                                              onTap: () =>
+                                                                  _showImagePreview(
+                                                                    selectedImage!,
+                                                                  ),
+                                                              child: Container(
+                                                                margin:
+                                                                    const EdgeInsets.only(
+                                                                      top: 8,
+                                                                    ),
+                                                                height: 80,
+                                                                child: ClipRRect(
+                                                                  borderRadius:
+                                                                      BorderRadius.circular(
+                                                                        6,
+                                                                      ),
+                                                                  child: Image.file(
+                                                                    File(
+                                                                      selectedImage!,
+                                                                    ),
+                                                                    fit: BoxFit
+                                                                        .cover,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            )
+                                                          : const SizedBox.shrink(),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(context),
+                                              child: const Text('취소'),
+                                            ),
+                                            ElevatedButton(
+                                              onPressed: () {
+                                                if (_controller.text
+                                                    .trim()
+                                                    .isEmpty) {
+                                                  showOverlayToast(
+                                                    context,
+                                                    '제목을 입력하세요',
+                                                  );
+                                                  return;
+                                                }
+                                                setState(() {
+                                                  event.title = _controller.text
+                                                      .trim();
+                                                  event.color = selectedColor;
+                                                  event.imagePath =
+                                                      selectedImage;
+                                                });
+                                                setModalState(() {});
+                                                Navigator.pop(context);
+                                              },
+                                              child: const Text('저장'),
+                                            ),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    vertical: 6,
+                                  ),
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: event.color.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              event.title,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                          if (event.imagePath != null)
+                                            IconButton(
+                                              icon: const Icon(
+                                                Icons.delete_forever,
+                                                size: 20,
+                                              ),
+                                              tooltip: '사진 제거',
+                                              onPressed: () {
+                                                setState(() {
+                                                  event.imagePath = null;
+                                                });
+                                                setModalState(() {});
+                                              },
+                                            ),
+                                        ],
+                                      ),
+                                      AnimatedSize(
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        curve: Curves.easeInOut,
+                                        child: event.imagePath != null
+                                            ? GestureDetector(
+                                                onTap: () => _showImagePreview(
+                                                  event.imagePath!,
+                                                ),
+                                                child: Container(
+                                                  margin: const EdgeInsets.only(
+                                                    top: 8,
+                                                  ),
+                                                  height: 80,
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                    child: Image.file(
+                                                      File(event.imagePath!),
+                                                      fit: BoxFit.cover,
+                                                    ),
+                                                  ),
+                                                ),
+                                              )
+                                            : const SizedBox.shrink(),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        _controller.clear();
+                        Color selectedColor = _defaultColor;
+                        String? selectedImage;
+
+                        showDialog(
+                          context: context,
+                          builder: (_) => StatefulBuilder(
+                            builder: (context, setDialogState) {
+                              return AlertDialog(
+                                title: const Text('일정 추가'),
+                                content: SingleChildScrollView(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      TextField(
+                                        controller: _controller,
+                                        decoration: const InputDecoration(
+                                          labelText: '제목',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: _buildColorOptions(
+                                          selectedColor,
+                                          (c) {
+                                            setDialogState(() {
+                                              selectedColor = c;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Text('선택 색상: '),
+                                          Container(
+                                            width: 28,
+                                            height: 28,
+                                            decoration: BoxDecoration(
+                                              color: selectedColor,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.black12,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceEvenly,
+                                            children: [
+                                              SizedBox(
+                                                width: 120,
+                                                child: ElevatedButton.icon(
+                                                  style: smallElevatedStyle,
+                                                  icon: const Icon(
+                                                    Icons.image,
+                                                    size: 20,
+                                                  ),
+                                                  label: const Text(
+                                                    '사진 추가',
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                  onPressed: () async {
+                                                    final path =
+                                                        await _pickImage();
+                                                    if (path != null) {
+                                                      setDialogState(() {
+                                                        selectedImage = path;
+                                                      });
+                                                    }
+                                                  },
+                                                ),
+                                              ),
+                                              if (selectedImage != null)
+                                                SizedBox(
+                                                  width: 120,
+                                                  child: OutlinedButton.icon(
+                                                    style: smallOutlinedStyle,
+                                                    icon: const Icon(
+                                                      Icons.delete,
+                                                      size: 20,
+                                                    ),
+                                                    label: const Text(
+                                                      '사진 제거',
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                    ),
+                                                    onPressed: () {
+                                                      setDialogState(() {
+                                                        selectedImage = null;
+                                                      });
+                                                    },
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          AnimatedSize(
+                                            duration: const Duration(
+                                              milliseconds: 180,
+                                            ),
+                                            curve: Curves.easeInOut,
+                                            child: selectedImage != null
+                                                ? GestureDetector(
+                                                    onTap: () =>
+                                                        _showImagePreview(
+                                                          selectedImage!,
+                                                        ),
+                                                    child: Container(
+                                                      margin:
+                                                          const EdgeInsets.only(
+                                                            top: 8,
+                                                          ),
+                                                      height: 80,
+                                                      child: ClipRRect(
+                                                        borderRadius:
+                                                            BorderRadius.circular(
+                                                              6,
+                                                            ),
+                                                        child: Image.file(
+                                                          File(selectedImage!),
+                                                          fit: BoxFit.cover,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  )
+                                                : const SizedBox.shrink(),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text('취소'),
+                                  ),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      if (_controller.text.trim().isEmpty) {
+                                        showOverlayToast(context, '제목을 입력하세요');
+                                        return;
+                                      }
+                                      setState(() {
+                                        if (!events.containsKey(key))
+                                          events[key] = [];
+                                        events[key]!.add(
+                                          Event(
+                                            title: _controller.text.trim(),
+                                            color: selectedColor,
+                                            imagePath: selectedImage,
+                                          ),
+                                        );
+                                      });
+                                      setModalState(() {});
+                                      Navigator.pop(context);
+                                    },
+                                    child: const Text('저장'),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.add),
+                      label: const Text('일정 추가'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -720,43 +878,40 @@ class _CalendarScreenState extends State<CalendarScreen> {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    ...dayEvents
-                        .take(2)
-                        .map(
-                          (e) => Container(
-                            margin: const EdgeInsets.only(top: 2),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: e.color.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    e.title,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.black87,
-                                    ),
-                                  ),
-                                ),
-                                if (e.imagePath != null) // ✅ 셀에도 사진 있으면 아이콘 표시
-                                  GestureDetector(
-                                    onTap: () =>
-                                        _showImagePreview(e.imagePath!),
-                                    child: const Icon(Icons.image, size: 12),
-                                  ),
-                              ],
-                            ),
-                          ),
+                    ...dayEvents.take(2).map((e) {
+                      return Container(
+                        margin: const EdgeInsets.only(top: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 4,
+                          vertical: 2,
                         ),
+                        decoration: BoxDecoration(
+                          color: e.color.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                e.title,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.black87,
+                                ),
+                              ),
+                            ),
+                            if (e.imagePath != null)
+                              GestureDetector(
+                                onTap: () => _showImagePreview(e.imagePath!),
+                                child: const Icon(Icons.image, size: 12),
+                              ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                     if (dayEvents.length > 2)
                       Container(
                         margin: const EdgeInsets.only(top: 2),
@@ -786,7 +941,79 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  bool _isSameDate(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Container(
+              height: 60,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  IconButton(icon: const Icon(Icons.menu), onPressed: () {}),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Center(
+                      child: Text(
+                        DateFormat('yyyy.M').format(_currentMonth),
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.calendar_today_outlined),
+                    onPressed: _showYearMonthPicker,
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: ['일', '월', '화', '수', '목', '금', '토']
+                    .map(
+                      (d) => Expanded(
+                        child: Center(
+                          child: Text(
+                            d,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: d == '토'
+                                  ? Colors.blue
+                                  : d == '일'
+                                  ? Colors.red
+                                  : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              ),
+            ),
+            Expanded(
+              child: PageView.builder(
+                controller: _pageController,
+                onPageChanged: (index) {
+                  setState(() {
+                    _currentMonth = _getMonthDate(index);
+                  });
+                },
+                itemBuilder: (context, pageIndex) {
+                  return _buildMonthGrid(_getMonthDate(pageIndex));
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
