@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import '../models/event.dart';
+import '../controllers/calendar_controller.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -10,41 +11,17 @@ class CalendarScreen extends StatefulWidget {
   State<CalendarScreen> createState() => _CalendarScreenState();
 }
 
-class Event {
-  String title;
-  Color color;
-  String? imagePath;
-  Event({required this.title, required this.color, this.imagePath});
-}
-
 class _CalendarScreenState extends State<CalendarScreen> {
-  DateTime _selectedDay = DateTime.now();
-  DateTime _currentMonth = DateTime(
-    DateTime.now().year,
-    DateTime.now().month,
-    1,
-  );
-  final Map<String, List<Event>> events = {};
+  late final CalendarController _controller;
   late final PageController _pageController;
   late final int _initialPage;
-  final ImagePicker _picker = ImagePicker();
-  final int _yearRangeSpan = 50;
 
   @override
   void initState() {
     super.initState();
+    _controller = CalendarController();
     _initialPage = 1000;
     _pageController = PageController(initialPage: _initialPage);
-  }
-
-  DateTime _getMonthDate(int pageIndex) {
-    final int monthOffset = pageIndex - _initialPage;
-    return DateTime(DateTime.now().year, DateTime.now().month + monthOffset, 1);
-  }
-
-  Future<String?> _pickImage() async {
-    final XFile? picked = await _picker.pickImage(source: ImageSource.gallery);
-    return picked?.path;
   }
 
   void _showImagePreview(String path) {
@@ -55,11 +32,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
     );
   }
 
-  bool _isSameDate(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
-  }
-
-  void showOverlayToast(BuildContext context, String message) {
+  void showOverlayToast(String message) {
     final overlay = Overlay.of(context);
     final overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
@@ -81,24 +54,23 @@ class _CalendarScreenState extends State<CalendarScreen> {
         ),
       ),
     );
-
     overlay.insert(overlayEntry);
-    Future.delayed(const Duration(seconds: 2), () {
-      overlayEntry.remove();
-    });
+    Future.delayed(const Duration(seconds: 2), () => overlayEntry.remove());
   }
 
   Future<void> _showYearMonthPicker() async {
     final int nowYear = DateTime.now().year;
-    final int startYear = nowYear - _yearRangeSpan;
-    final int yearCount = _yearRangeSpan * 2 + 1;
-    int selectedYear = _currentMonth.year;
-    int selectedMonth = _currentMonth.month;
+    final int startYear = nowYear - _controller.yearRangeSpan;
+    final int yearCount = _controller.yearRangeSpan * 2 + 1;
+    int selectedYear = _controller.currentMonth.year;
+    int selectedMonth = _controller.currentMonth.month;
 
-    final FixedExtentScrollController yearController =
-        FixedExtentScrollController(initialItem: selectedYear - startYear);
-    final FixedExtentScrollController monthController =
-        FixedExtentScrollController(initialItem: selectedMonth - 1);
+    final yearController = FixedExtentScrollController(
+      initialItem: selectedYear - startYear,
+    );
+    final monthController = FixedExtentScrollController(
+      initialItem: selectedMonth - 1,
+    );
 
     await showDialog(
       context: context,
@@ -115,7 +87,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     Expanded(
                       child: NotificationListener<ScrollNotification>(
                         onNotification: (notification) {
-                          setDialogState(() {}); // 스크롤 시 색상 갱신
+                          setDialogState(() {});
                           return false;
                         },
                         child: ListWheelScrollView.useDelegate(
@@ -125,14 +97,13 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           physics: const FixedExtentScrollPhysics(),
                           onSelectedItemChanged: (index) {
                             selectedYear = startYear + index;
-                            setDialogState(() {}); // 선택 변경 시 색상 갱신
+                            setDialogState(() {});
                           },
                           childDelegate: ListWheelChildBuilderDelegate(
                             builder: (context, index) {
                               final year = startYear + index;
-                              final int currentIndex =
-                                  yearController.selectedItem;
-                              final isSelected = index == currentIndex;
+                              final isSelected =
+                                  index == yearController.selectedItem;
                               return Center(
                                 child: Text(
                                   "$year 년",
@@ -157,7 +128,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     Expanded(
                       child: NotificationListener<ScrollNotification>(
                         onNotification: (notification) {
-                          setDialogState(() {}); // 스크롤 시 색상 갱신
+                          setDialogState(() {});
                           return false;
                         },
                         child: ListWheelScrollView.useDelegate(
@@ -171,9 +142,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           childDelegate: ListWheelChildBuilderDelegate(
                             builder: (context, index) {
                               final month = index + 1;
-                              final int currentIndex =
-                                  monthController.selectedItem;
-                              final isSelected = index == currentIndex;
+                              final isSelected =
+                                  index == monthController.selectedItem;
                               return Center(
                                 child: Text(
                                   "$month 월",
@@ -205,7 +175,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      _currentMonth = DateTime(selectedYear, selectedMonth, 1);
+                      _controller.currentMonth = DateTime(
+                        selectedYear,
+                        selectedMonth,
+                        1,
+                      );
                     });
                     final int diffMonths =
                         (selectedYear - DateTime.now().year) * 12 +
@@ -224,20 +198,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   void _openEventList(DateTime day) {
-    final String key = DateFormat('yyyy-MM-dd').format(day);
+    final key = _controller.formatDateKey(day);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       builder: (context) {
-        final TextEditingController _controller = TextEditingController();
+        final TextEditingController textController = TextEditingController();
         return Padding(
           padding: MediaQuery.of(context).viewInsets,
           child: StatefulBuilder(
             builder: (context, setModalState) {
-              Color _defaultColor = Colors.blue;
-              final dayEvents = events[key] ?? [];
+              Color selectedColor = Colors.blue;
+              List<Event> dayEvents = _controller.getEvents(key);
 
-              List<Widget> _buildColorOptions(
+              List<Widget> buildColorOptions(
                 Color selected,
                 Function(Color) onSelect,
               ) {
@@ -267,7 +241,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 }).toList();
               }
 
-              final ButtonStyle smallElevatedStyle = ElevatedButton.styleFrom(
+              final smallElevatedStyle = ElevatedButton.styleFrom(
                 minimumSize: const Size(120, 40),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -276,8 +250,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 visualDensity: VisualDensity.compact,
                 textStyle: const TextStyle(fontSize: 14),
               );
-
-              final ButtonStyle smallOutlinedStyle = OutlinedButton.styleFrom(
+              final smallOutlinedStyle = OutlinedButton.styleFrom(
                 minimumSize: const Size(120, 40),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 12,
@@ -296,7 +269,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      '일정 (${DateFormat('yyyy-MM-dd').format(day)})',
+                      '일정 (${_controller.formatDateKey(day)})',
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -323,20 +296,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                               ),
                             ),
                             onDismissed: (_) {
-                              setState(() {
-                                events[key]!.removeAt(index);
-                              });
+                              setState(
+                                () => _controller.removeEvent(key, index),
+                              );
                               setModalState(() {});
                             },
                             child: Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                onTap: () {
-                                  _controller.text = event.title;
+                                onTap: () async {
+                                  textController.text = event.title;
                                   Color selectedColor = event.color;
                                   String? selectedImage = event.imagePath;
 
-                                  showDialog(
+                                  await showDialog(
                                     context: context,
                                     builder: (_) => StatefulBuilder(
                                       builder: (context, setDialogState) {
@@ -347,19 +320,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 TextField(
-                                                  controller: _controller,
+                                                  controller: textController,
                                                 ),
                                                 const SizedBox(height: 10),
                                                 Row(
                                                   mainAxisAlignment:
                                                       MainAxisAlignment.center,
-                                                  children: _buildColorOptions(
+                                                  children: buildColorOptions(
                                                     selectedColor,
-                                                    (c) {
-                                                      setDialogState(() {
-                                                        selectedColor = c;
-                                                      });
-                                                    },
+                                                    (c) => setDialogState(
+                                                      () => selectedColor = c,
+                                                    ),
                                                   ),
                                                 ),
                                                 const SizedBox(height: 8),
@@ -382,110 +353,96 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                                   ],
                                                 ),
                                                 const SizedBox(height: 10),
-                                                Column(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
+                                                Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment
+                                                          .spaceEvenly,
                                                   children: [
-                                                    Row(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .spaceEvenly,
-                                                      children: [
-                                                        SizedBox(
-                                                          width: 120,
-                                                          child: ElevatedButton.icon(
-                                                            style:
-                                                                smallElevatedStyle,
-                                                            icon: const Icon(
-                                                              Icons.image,
-                                                              size: 20,
-                                                            ),
-                                                            label: Text(
-                                                              selectedImage ==
-                                                                      null
-                                                                  ? '사진 추가'
-                                                                  : '사진 변경',
-                                                              overflow:
-                                                                  TextOverflow
-                                                                      .ellipsis,
-                                                            ),
-                                                            onPressed: () async {
-                                                              final path =
-                                                                  await _pickImage();
-                                                              if (path !=
-                                                                  null) {
-                                                                setDialogState(
-                                                                  () {
-                                                                    selectedImage =
-                                                                        path;
-                                                                  },
-                                                                );
-                                                              }
-                                                            },
-                                                          ),
+                                                    SizedBox(
+                                                      width: 120,
+                                                      child: ElevatedButton.icon(
+                                                        style:
+                                                            smallElevatedStyle,
+                                                        icon: const Icon(
+                                                          Icons.image,
+                                                          size: 20,
                                                         ),
-                                                        if (selectedImage !=
-                                                            null)
-                                                          SizedBox(
-                                                            width: 120,
-                                                            child: OutlinedButton.icon(
-                                                              style:
-                                                                  smallOutlinedStyle,
-                                                              icon: const Icon(
-                                                                Icons.delete,
-                                                                size: 20,
-                                                              ),
-                                                              label: const Text(
-                                                                '사진 제거',
-                                                              ),
-                                                              onPressed: () {
-                                                                setDialogState(
-                                                                  () {
+                                                        label: Text(
+                                                          selectedImage == null
+                                                              ? '사진 추가'
+                                                              : '사진 변경',
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                        onPressed: () async {
+                                                          final path =
+                                                              await _controller
+                                                                  .pickImage();
+                                                          if (path != null)
+                                                            setDialogState(
+                                                              () =>
+                                                                  selectedImage =
+                                                                      path,
+                                                            );
+                                                        },
+                                                      ),
+                                                    ),
+                                                    if (selectedImage != null)
+                                                      SizedBox(
+                                                        width: 120,
+                                                        child: OutlinedButton.icon(
+                                                          style:
+                                                              smallOutlinedStyle,
+                                                          icon: const Icon(
+                                                            Icons.delete,
+                                                            size: 20,
+                                                          ),
+                                                          label: const Text(
+                                                            '사진 제거',
+                                                          ),
+                                                          onPressed: () =>
+                                                              setDialogState(
+                                                                () =>
                                                                     selectedImage =
-                                                                        null;
-                                                                  },
-                                                                );
-                                                              },
+                                                                        null,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                  ],
+                                                ),
+                                                AnimatedSize(
+                                                  duration: const Duration(
+                                                    milliseconds: 180,
+                                                  ),
+                                                  curve: Curves.easeInOut,
+                                                  child: selectedImage != null
+                                                      ? GestureDetector(
+                                                          onTap: () =>
+                                                              _showImagePreview(
+                                                                selectedImage!,
+                                                              ),
+                                                          child: Container(
+                                                            margin:
+                                                                const EdgeInsets.only(
+                                                                  top: 8,
+                                                                ),
+                                                            height: 80,
+                                                            child: ClipRRect(
+                                                              borderRadius:
+                                                                  BorderRadius.circular(
+                                                                    6,
+                                                                  ),
+                                                              child: Image.file(
+                                                                File(
+                                                                  selectedImage!,
+                                                                ),
+                                                                fit: BoxFit
+                                                                    .cover,
+                                                              ),
                                                             ),
                                                           ),
-                                                      ],
-                                                    ),
-                                                    AnimatedSize(
-                                                      duration: const Duration(
-                                                        milliseconds: 180,
-                                                      ),
-                                                      curve: Curves.easeInOut,
-                                                      child:
-                                                          selectedImage != null
-                                                          ? GestureDetector(
-                                                              onTap: () =>
-                                                                  _showImagePreview(
-                                                                    selectedImage!,
-                                                                  ),
-                                                              child: Container(
-                                                                margin:
-                                                                    const EdgeInsets.only(
-                                                                      top: 8,
-                                                                    ),
-                                                                height: 80,
-                                                                child: ClipRRect(
-                                                                  borderRadius:
-                                                                      BorderRadius.circular(
-                                                                        6,
-                                                                      ),
-                                                                  child: Image.file(
-                                                                    File(
-                                                                      selectedImage!,
-                                                                    ),
-                                                                    fit: BoxFit
-                                                                        .cover,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            )
-                                                          : const SizedBox.shrink(),
-                                                    ),
-                                                  ],
+                                                        )
+                                                      : const SizedBox.shrink(),
                                                 ),
                                               ],
                                             ),
@@ -498,17 +455,15 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                             ),
                                             ElevatedButton(
                                               onPressed: () {
-                                                if (_controller.text
+                                                if (textController.text
                                                     .trim()
                                                     .isEmpty) {
-                                                  showOverlayToast(
-                                                    context,
-                                                    '제목을 입력하세요',
-                                                  );
+                                                  showOverlayToast('제목을 입력하세요');
                                                   return;
                                                 }
                                                 setState(() {
-                                                  event.title = _controller.text
+                                                  event.title = textController
+                                                      .text
                                                       .trim();
                                                   event.color = selectedColor;
                                                   event.imagePath =
@@ -560,9 +515,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                               ),
                                               tooltip: '사진 제거',
                                               onPressed: () {
-                                                setState(() {
-                                                  event.imagePath = null;
-                                                });
+                                                setState(
+                                                  () => event.imagePath = null,
+                                                );
                                                 setModalState(() {});
                                               },
                                             ),
@@ -609,8 +564,8 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     const SizedBox(height: 8),
                     ElevatedButton.icon(
                       onPressed: () {
-                        _controller.clear();
-                        Color selectedColor = _defaultColor;
+                        textController.clear();
+                        Color selectedColor = Colors.blue;
                         String? selectedImage;
 
                         showDialog(
@@ -624,7 +579,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       TextField(
-                                        controller: _controller,
+                                        controller: textController,
                                         decoration: const InputDecoration(
                                           labelText: '제목',
                                         ),
@@ -633,13 +588,11 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                       Row(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
-                                        children: _buildColorOptions(
+                                        children: buildColorOptions(
                                           selectedColor,
-                                          (c) {
-                                            setDialogState(() {
-                                              selectedColor = c;
-                                            });
-                                          },
+                                          (c) => setDialogState(
+                                            () => selectedColor = c,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(height: 8),
@@ -662,92 +615,77 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                         ],
                                       ),
                                       const SizedBox(height: 10),
-                                      Column(
-                                        mainAxisSize: MainAxisSize.min,
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceEvenly,
                                         children: [
-                                          Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceEvenly,
-                                            children: [
-                                              SizedBox(
-                                                width: 120,
-                                                child: ElevatedButton.icon(
-                                                  style: smallElevatedStyle,
-                                                  icon: const Icon(
-                                                    Icons.image,
-                                                    size: 20,
-                                                  ),
-                                                  label: const Text(
-                                                    '사진 추가',
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                  onPressed: () async {
-                                                    final path =
-                                                        await _pickImage();
-                                                    if (path != null) {
-                                                      setDialogState(() {
-                                                        selectedImage = path;
-                                                      });
-                                                    }
-                                                  },
+                                          SizedBox(
+                                            width: 120,
+                                            child: ElevatedButton.icon(
+                                              style: smallElevatedStyle,
+                                              icon: const Icon(
+                                                Icons.image,
+                                                size: 20,
+                                              ),
+                                              label: const Text(
+                                                '사진 추가',
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              onPressed: () async {
+                                                final path = await _controller
+                                                    .pickImage();
+                                                if (path != null)
+                                                  setDialogState(
+                                                    () => selectedImage = path,
+                                                  );
+                                              },
+                                            ),
+                                          ),
+                                          if (selectedImage != null)
+                                            SizedBox(
+                                              width: 120,
+                                              child: OutlinedButton.icon(
+                                                style: smallOutlinedStyle,
+                                                icon: const Icon(
+                                                  Icons.delete,
+                                                  size: 20,
+                                                ),
+                                                label: const Text('사진 제거'),
+                                                onPressed: () => setDialogState(
+                                                  () => selectedImage = null,
                                                 ),
                                               ),
-                                              if (selectedImage != null)
-                                                SizedBox(
-                                                  width: 120,
-                                                  child: OutlinedButton.icon(
-                                                    style: smallOutlinedStyle,
-                                                    icon: const Icon(
-                                                      Icons.delete,
-                                                      size: 20,
+                                            ),
+                                        ],
+                                      ),
+                                      AnimatedSize(
+                                        duration: const Duration(
+                                          milliseconds: 180,
+                                        ),
+                                        curve: Curves.easeInOut,
+                                        child: selectedImage != null
+                                            ? GestureDetector(
+                                                onTap: () => _showImagePreview(
+                                                  selectedImage!,
+                                                ),
+                                                child: Container(
+                                                  margin: const EdgeInsets.only(
+                                                    top: 8,
+                                                  ),
+                                                  height: 80,
+                                                  child: ClipRRect(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          6,
+                                                        ),
+                                                    child: Image.file(
+                                                      File(selectedImage!),
+                                                      fit: BoxFit.cover,
                                                     ),
-                                                    label: const Text(
-                                                      '사진 제거',
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                    ),
-                                                    onPressed: () {
-                                                      setDialogState(() {
-                                                        selectedImage = null;
-                                                      });
-                                                    },
                                                   ),
                                                 ),
-                                            ],
-                                          ),
-                                          AnimatedSize(
-                                            duration: const Duration(
-                                              milliseconds: 180,
-                                            ),
-                                            curve: Curves.easeInOut,
-                                            child: selectedImage != null
-                                                ? GestureDetector(
-                                                    onTap: () =>
-                                                        _showImagePreview(
-                                                          selectedImage!,
-                                                        ),
-                                                    child: Container(
-                                                      margin:
-                                                          const EdgeInsets.only(
-                                                            top: 8,
-                                                          ),
-                                                      height: 80,
-                                                      child: ClipRRect(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                              6,
-                                                            ),
-                                                        child: Image.file(
-                                                          File(selectedImage!),
-                                                          fit: BoxFit.cover,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  )
-                                                : const SizedBox.shrink(),
-                                          ),
-                                        ],
+                                              )
+                                            : const SizedBox.shrink(),
                                       ),
                                     ],
                                   ),
@@ -759,21 +697,20 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                   ),
                                   ElevatedButton(
                                     onPressed: () {
-                                      if (_controller.text.trim().isEmpty) {
-                                        showOverlayToast(context, '제목을 입력하세요');
+                                      if (textController.text.trim().isEmpty) {
+                                        showOverlayToast('제목을 입력하세요');
                                         return;
                                       }
-                                      setState(() {
-                                        if (!events.containsKey(key))
-                                          events[key] = [];
-                                        events[key]!.add(
+                                      setState(
+                                        () => _controller.addEvent(
+                                          key,
                                           Event(
-                                            title: _controller.text.trim(),
+                                            title: textController.text.trim(),
                                             color: selectedColor,
                                             imagePath: selectedImage,
                                           ),
-                                        );
-                                      });
+                                        ),
+                                      );
                                       setModalState(() {});
                                       Navigator.pop(context);
                                     },
@@ -804,11 +741,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
     final firstDayOfMonth = DateTime(year, month, 1);
     final lastDayOfMonth = DateTime(year, month + 1, 0);
     final int daysInMonth = lastDayOfMonth.day;
-
     final int firstWeekday = firstDayOfMonth.weekday % 7;
     final totalCells = firstWeekday + daysInMonth;
     final weeks = (totalCells / 7).ceil();
-
     final double horizontalPadding = 12;
     final availableHeight =
         MediaQuery.of(context).size.height - 60 - 36 - 16 - 48;
@@ -836,16 +771,17 @@ class _CalendarScreenState extends State<CalendarScreen> {
             if (dayIndex < 1 || dayIndex > daysInMonth) return Container();
 
             final DateTime day = DateTime(year, month, dayIndex);
-            final key = DateFormat('yyyy-MM-dd').format(day);
-            final bool isToday = _isSameDate(day, DateTime.now());
-            final bool isSelected = _isSameDate(day, _selectedDay);
-            final dayEvents = events[key] ?? [];
+            final key = _controller.formatDateKey(day);
+            final bool isToday = _controller.isSameDate(day, DateTime.now());
+            final bool isSelected = _controller.isSameDate(
+              day,
+              _controller.selectedDay,
+            );
+            final dayEvents = _controller.getEvents(key);
 
             return GestureDetector(
               onTap: () {
-                setState(() {
-                  _selectedDay = day;
-                });
+                setState(() => _controller.selectedDay = day);
                 _openEventList(day);
               },
               child: Container(
@@ -958,7 +894,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   Expanded(
                     child: Center(
                       child: Text(
-                        DateFormat('yyyy.M').format(_currentMonth),
+                        DateFormat('yyyy.M').format(_controller.currentMonth),
                         style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -977,38 +913,37 @@ class _CalendarScreenState extends State<CalendarScreen> {
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
-                children: ['일', '월', '화', '수', '목', '금', '토']
-                    .map(
-                      (d) => Expanded(
-                        child: Center(
-                          child: Text(
-                            d,
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: d == '토'
-                                  ? Colors.blue
-                                  : d == '일'
-                                  ? Colors.red
-                                  : Colors.black87,
-                            ),
-                          ),
+                children: ['일', '월', '화', '수', '목', '금', '토'].map((d) {
+                  return Expanded(
+                    child: Center(
+                      child: Text(
+                        d,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: d == '토'
+                              ? Colors.blue
+                              : d == '일'
+                              ? Colors.red
+                              : Colors.black87,
                         ),
                       ),
-                    )
-                    .toList(),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentMonth = _getMonthDate(index);
-                  });
-                },
-                itemBuilder: (context, pageIndex) {
-                  return _buildMonthGrid(_getMonthDate(pageIndex));
-                },
+                onPageChanged: (index) => setState(
+                  () => _controller.currentMonth = _controller.getMonthDate(
+                    index,
+                    _initialPage,
+                  ),
+                ),
+                itemBuilder: (context, pageIndex) => _buildMonthGrid(
+                  _controller.getMonthDate(pageIndex, _initialPage),
+                ),
               ),
             ),
           ],
